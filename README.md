@@ -116,12 +116,25 @@ The Arena submission trains on the 17 tasks with mixed outcomes (mean reward 0.1
 | `xnpv_xirr-l2` | 6 | 1.00 | 1.0 | 0 |  |
 | `xnpv_xirr-l3` | 6 | 0.67 | 1.0 | 2 | yes |
 
+## Local GRPO pilot
+
+Before submitting, `scripts/trl_grpo_pilot.py` ran GRPO on one RTX 4090: Qwen3-4B with LoRA, TRL 1.14 with colocated vLLM in sleep mode, Liger loss, 8k-token Arena-style multi-turn episodes, and the observation tokens masked out of the loss. It trained 60 steps (16 episodes each) on levels 1-2 of seven families, then evaluated on fixed seeds (6 per task, temperature 0.7):
+
+| Split | Base | Trained |
+|---|---|---|
+| Trained tasks (L1-L2 of 7 families) | 0.22 (16/84 solved) | 0.48 (36/84 solved) |
+| Untrained harder levels (L3 of those families) | 0.05 (0/42) | 0.04 (1/42) |
+| Held-out families (`graph_paths`, `xnpv_xirr`) | 0.02 (0/36) | 0.06 (1/36) |
+
+The reward is learnable, and format failures fall on the trained tasks. Transfer to harder levels or new families did not show up at this scale. This is a small-model check, not a prediction for the Arena run.
+
 ## Links
 
 - Image: `ghcr.io/rycerzes/openenv-arena-compute-lab:v1` (linux/amd64)
 - Source: https://github.com/rycerzes/openenv-arena-compute-lab
 - Dataset: https://huggingface.co/datasets/rycerzes/openenv-arena-compute-lab
 - Built for OpenEnv Arena with OpenEnv at `86a180ede21e044f7929b9a7783ad83aa67d83a3`
+- Arena submission `verified-compute-lab-v1` (`submission.json`): run [9a41aa8e1e4694e3a8809f8d](https://openenvarena-training.hf.space/?project=rycerzes&runs=9a41aa8e1e4694e3a8809f8d)
 
 ## Files
 

@@ -1,0 +1,304 @@
+{
+ "submission_id": "verified-compute-lab-v1",
+ "name": "Verified Compute Lab",
+ "image": "ghcr.io/rycerzes/openenv-arena-compute-lab@sha256:163e97354069819e23495000fc40215a2a6284eec55b64b7bab69ef8eed729f9",
+ "schema": {
+  "action": {
+   "additionalProperties": false,
+   "description": "One tool call: read a task file, run Python on the files, or submit the answer.",
+   "properties": {
+    "metadata": {
+     "additionalProperties": true,
+     "description": "Additional metadata for the action",
+     "title": "Metadata",
+     "type": "object"
+    },
+    "tool": {
+     "description": "One of \"read\", \"python\" or \"submit\".",
+     "title": "Tool",
+     "type": "string"
+    },
+    "path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "File name to show (tool \"read\").",
+     "title": "Path"
+    },
+    "code": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Python 3 source to run in the task folder; print what you need (tool \"python\").",
+     "title": "Code"
+    },
+    "answer": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Final answer, one key per answer field (tool \"submit\"). Ends the episode.",
+     "title": "Answer"
+    }
+   },
+   "required": [
+    "tool"
+   ],
+   "title": "ComputeLabAction",
+   "type": "object"
+  },
+  "observation": {
+   "additionalProperties": false,
+   "description": "Tool output, or the task statement on reset.",
+   "properties": {
+    "done": {
+     "default": false,
+     "description": "Whether the episode has terminated",
+     "title": "Done",
+     "type": "boolean"
+    },
+    "reward": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "integer"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Reward signal from the last action",
+     "title": "Reward"
+    },
+    "metadata": {
+     "additionalProperties": true,
+     "description": "Additional metadata for the observation",
+     "title": "Metadata",
+     "type": "object"
+    },
+    "output": {
+     "default": "",
+     "description": "Task statement or tool output",
+     "title": "Output",
+     "type": "string"
+    },
+    "steps_left": {
+     "default": 0,
+     "description": "Tool calls left in this episode",
+     "title": "Steps Left",
+     "type": "integer"
+    }
+   },
+   "title": "ComputeLabObservation",
+   "type": "object"
+  }
+ },
+ "tasks": [
+  {
+   "task_id": "loan_schedule-l1",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "loan_schedule-l2",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "loan_schedule-l3",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "fx_ledger-l2",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "fx_ledger-l3",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "xnpv_xirr-l3",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "projectile_ode-l1",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "reaction_kinetics-l3",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "stoichiometry-l1",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "stoichiometry-l2",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "stoichiometry-l3",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "constrained_count-l1",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "constrained_count-l2",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "constrained_count-l3",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "graph_paths-l3",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "recurrence_mod-l2",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  },
+  {
+   "task_id": "recurrence_mod-l3",
+   "split": "train",
+   "reset_wall_s": 180,
+   "rollout_wall_s": 1800,
+   "verifier_wall_s": 120,
+   "tool_wall_s": 60,
+   "completion_tokens": 8192,
+   "context_tokens": 16384
+  }
+ ],
+ "example_actions": [
+  {
+   "tool": "submit",
+   "answer": {}
+  }
+ ],
+ "finish_action": {
+  "tool": "submit",
+  "answer": {}
+ },
+ "dataset": "rycerzes/openenv-arena-compute-lab",
+ "source": "https://github.com/rycerzes/openenv-arena-compute-lab"
+}
