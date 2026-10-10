@@ -44,7 +44,7 @@ def main():
                 "summary": family.summary,
                 "in_submission": task_id in submitted,
                 "split": "train" if task_id in submitted else "unused",
-                "calibration": calibration.get(task_id),
+                "calibration": calibration.get("tasks", {}).get(task_id),
                 "example_seed": 0,
                 "example_prompt": render_prompt(example),
                 "example_files": json.dumps(example.files),

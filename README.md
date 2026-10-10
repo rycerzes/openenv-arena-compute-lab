@@ -116,6 +116,13 @@ The Arena submission trains on the 17 tasks with mixed outcomes (mean reward 0.1
 | `xnpv_xirr-l2` | 6 | 1.00 | 1.0 | 0 |  |
 | `xnpv_xirr-l3` | 6 | 0.67 | 1.0 | 2 | yes |
 
+## Links
+
+- Image: `ghcr.io/rycerzes/openenv-arena-compute-lab:v1` (linux/amd64)
+- Source: https://github.com/rycerzes/openenv-arena-compute-lab
+- Dataset: https://huggingface.co/datasets/rycerzes/openenv-arena-compute-lab
+- Built for OpenEnv Arena with OpenEnv at `86a180ede21e044f7929b9a7783ad83aa67d83a3`
+
 ## Files
 
 - `tasks.jsonl`: one row per task id, with its domain, whether it is in the
