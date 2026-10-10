@@ -1,0 +1,13 @@
+.venv
+.git
+__pycache__
+*.pyc
+tests
+scripts
+calibration
+dataset
+uv.lock
+.pytest_cache
+*.egg-info
+build/*
+!build/site-packages

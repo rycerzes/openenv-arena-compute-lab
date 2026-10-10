@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-compute-lab"
+version = "0.1.0"
+description = "Verified Compute Lab: procedural math, science and finance tasks for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    # OpenEnv at the revision pinned by OpenEnv Arena
+    "openenv @ git+https://github.com/meta-pytorch/OpenEnv.git@86a180ede21e044f7929b9a7783ad83aa67d83a3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+server = "compute_lab.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["compute_lab", "compute_lab.server", "compute_lab.server.tasks"]
+package-dir = { "compute_lab" = ".", "compute_lab.server" = "server", "compute_lab.server.tasks" = "server/tasks" }
+
+[tool.uv]
+# Release-age cooldown: ignore package versions published in the last 7 days.
+exclude-newer = "2026-10-03T00:00:00Z"

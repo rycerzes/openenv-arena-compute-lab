@@ -1,0 +1,226 @@
+{
+ "model": "Qwen/Qwen3.8-27B",
+ "provider": "deepinfra (HF Inference Providers)",
+ "thinking": "off",
+ "temperature": 1.0,
+ "protocol": "system message with the action schema; observations as JSON user turns; one JSON object per reply, else the episode ends and is scored through the finish action",
+ "date": "2026-10-10",
+ "tasks": {
+  "constrained_count-l1": {
+   "episodes": 6,
+   "mean_reward": 0.667,
+   "submitted": 4,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 2,
+   "selected": true
+  },
+  "constrained_count-l2": {
+   "episodes": 6,
+   "mean_reward": 0.833,
+   "submitted": 5,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 1,
+   "selected": true
+  },
+  "constrained_count-l3": {
+   "episodes": 6,
+   "mean_reward": 0.5,
+   "submitted": 4,
+   "submitted_mean_reward": 0.75,
+   "format_failures": 2,
+   "selected": true
+  },
+  "fx_ledger-l1": {
+   "episodes": 6,
+   "mean_reward": 1.0,
+   "submitted": 6,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "fx_ledger-l2": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "submitted": 1,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 2,
+   "selected": true
+  },
+  "fx_ledger-l3": {
+   "episodes": 5,
+   "mean_reward": 0.2,
+   "submitted": 1,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 4,
+   "selected": true
+  },
+  "graph_paths-l1": {
+   "episodes": 6,
+   "mean_reward": 1.0,
+   "submitted": 6,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "graph_paths-l2": {
+   "episodes": 6,
+   "mean_reward": 0.917,
+   "submitted": 6,
+   "submitted_mean_reward": 0.917,
+   "format_failures": 0,
+   "selected": false
+  },
+  "graph_paths-l3": {
+   "episodes": 5,
+   "mean_reward": 0.8,
+   "submitted": 4,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 1,
+   "selected": true
+  },
+  "loan_schedule-l1": {
+   "episodes": 6,
+   "mean_reward": 0.5,
+   "submitted": 4,
+   "submitted_mean_reward": 0.75,
+   "format_failures": 2,
+   "selected": true
+  },
+  "loan_schedule-l2": {
+   "episodes": 5,
+   "mean_reward": 0.8,
+   "submitted": 5,
+   "submitted_mean_reward": 0.8,
+   "format_failures": 0,
+   "selected": true
+  },
+  "loan_schedule-l3": {
+   "episodes": 5,
+   "mean_reward": 0.8,
+   "submitted": 4,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 1,
+   "selected": true
+  },
+  "projectile_ode-l1": {
+   "episodes": 6,
+   "mean_reward": 0.833,
+   "submitted": 5,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 1,
+   "selected": true
+  },
+  "projectile_ode-l2": {
+   "episodes": 6,
+   "mean_reward": 1.0,
+   "submitted": 6,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "projectile_ode-l3": {
+   "episodes": 6,
+   "mean_reward": 1.0,
+   "submitted": 6,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "reaction_kinetics-l1": {
+   "episodes": 6,
+   "mean_reward": 1.0,
+   "submitted": 6,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "reaction_kinetics-l2": {
+   "episodes": 4,
+   "mean_reward": 1.0,
+   "submitted": 4,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "reaction_kinetics-l3": {
+   "episodes": 6,
+   "mean_reward": 0.5,
+   "submitted": 3,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 3,
+   "selected": true
+  },
+  "recurrence_mod-l1": {
+   "episodes": 6,
+   "mean_reward": 1.0,
+   "submitted": 6,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "recurrence_mod-l2": {
+   "episodes": 6,
+   "mean_reward": 0.75,
+   "submitted": 5,
+   "submitted_mean_reward": 0.9,
+   "format_failures": 1,
+   "selected": true
+  },
+  "recurrence_mod-l3": {
+   "episodes": 6,
+   "mean_reward": 0.167,
+   "submitted": 2,
+   "submitted_mean_reward": 0.5,
+   "format_failures": 4,
+   "selected": true
+  },
+  "stoichiometry-l1": {
+   "episodes": 6,
+   "mean_reward": 0.583,
+   "submitted": 5,
+   "submitted_mean_reward": 0.7,
+   "format_failures": 1,
+   "selected": true
+  },
+  "stoichiometry-l2": {
+   "episodes": 6,
+   "mean_reward": 0.833,
+   "submitted": 5,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 1,
+   "selected": true
+  },
+  "stoichiometry-l3": {
+   "episodes": 6,
+   "mean_reward": 0.5,
+   "submitted": 4,
+   "submitted_mean_reward": 0.75,
+   "format_failures": 2,
+   "selected": true
+  },
+  "xnpv_xirr-l1": {
+   "episodes": 6,
+   "mean_reward": 1.0,
+   "submitted": 6,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "xnpv_xirr-l2": {
+   "episodes": 6,
+   "mean_reward": 1.0,
+   "submitted": 6,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "xnpv_xirr-l3": {
+   "episodes": 6,
+   "mean_reward": 0.667,
+   "submitted": 4,
+   "submitted_mean_reward": 1.0,
+   "format_failures": 2,
+   "selected": true
+  }
+ }
+}
