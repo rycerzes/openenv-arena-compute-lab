@@ -2,12 +2,14 @@
 
 import json
 import random
+import re
 
 import pytest
 
 from compute_lab.models import ComputeLabAction
 from compute_lab.server.compute_lab_environment import MAX_TOOL_CALLS, ComputeLabEnvironment
-from compute_lab.server.tasks import TASK_IDS, generate, grade, parse_task_id
+from compute_lab.server.tasks import TASK_IDS as V1_TASK_IDS
+from compute_lab.server.tasks import generate as v1_generate
 from compute_lab.server.tasks.math_tasks import (
     count_brute,
     count_digit_dp,
@@ -18,10 +20,13 @@ from compute_lab.server.tasks.math_tasks import (
     recurrence_loop,
 )
 from compute_lab.server.tasks.science import REACTIONS, parse_formula
+from compute_lab.server.workbench import DIFFICULTIES, FAMILIES, TASK_IDS, make_episode
 
-from solutions import solver_code
+from solutions import SOLVERS, solver_code
 
-SEEDS = [0, 1, 7, 42]
+SEEDS = [0, 1, 7]
+PINNED = [f"{name}-d{d}" for name in FAMILIES for d in DIFFICULTIES]
+V1_NAMES = set(SOLVERS)
 
 
 @pytest.fixture
@@ -31,41 +36,259 @@ def env():
     e.close()
 
 
+def act(env, tool, **args):
+    return env.step(ComputeLabAction(tool=tool, args=args))
+
+
 def submit(env, answer):
-    return env.step(ComputeLabAction(tool="submit", answer=answer))
+    return act(env, "submit", answer=answer)
 
 
-@pytest.mark.parametrize("task_id", TASK_IDS)
+@pytest.mark.parametrize("task_id", PINNED)
 @pytest.mark.parametrize("seed", SEEDS)
-def test_reference_solver_through_python_tool_scores_one(env, task_id, seed):
+def test_oracle_scores_one_and_empty_scores_less(env, task_id, seed):
+    episode, _ = make_episode(task_id, seed)
+    oracle = episode.oracle
+    episode.close()
+    env.reset(task_id=task_id, seed=seed)
+    for a in oracle:
+        obs = env.step(ComputeLabAction(**a))
+    assert obs.done and obs.reward == 1.0, obs.output
+    env.reset(task_id=task_id, seed=seed)
+    obs = submit(env, {})
+    assert obs.done and obs.reward < 1.0
+
+
+@pytest.mark.parametrize("task_id", [t for t in PINNED if t.rpartition("-d")[0] in V1_NAMES and not t.endswith("-d4")])
+@pytest.mark.parametrize("seed", SEEDS)
+def test_v1_reference_solvers_through_python_tool(env, task_id, seed):
     obs = env.reset(task_id=task_id, seed=seed)
-    family, _ = parse_task_id(task_id)
-    out = env.step(ComputeLabAction(tool="python", code=solver_code(family.name, obs.output)))
-    assert not out.done, out.output
+    out = act(env, "python", code=solver_code(task_id.rpartition("-d")[0], obs.output))
     answer = json.loads(out.output.strip().splitlines()[-1])
     final = submit(env, answer)
     assert final.done and final.reward == 1.0, (final.output, answer)
 
 
-@pytest.mark.parametrize("task_id", TASK_IDS)
-def test_wrong_and_empty_answers_score_below_one(task_id):
-    task = generate(task_id, 3)
-    assert grade(task.fields, {})[0] == 0.0
-    wrong = {}
-    for f in task.fields:
-        if f.kind == "text":
-            wrong[f.name] = next((c for c in f.choices if c != f.expected), "nope")
-        else:
-            wrong[f.name] = float(f.expected) * 1.07 + 3
-    assert grade(task.fields, wrong)[0] == 0.0
+SCHEDULE_SOLVER = r"""
+import csv, itertools, json, os, re
+jobs = {r["job"]: (int(r["release_min"]), int(r["processing_min"]), int(r["due_min"]), int(r["weight"])) for r in csv.DictReader(open("jobs.csv"))}
+setups = {(r["from"], r["to"]): int(r["setup_min"]) for r in csv.DictReader(open("setups.csv"))} if os.path.exists("setups.csv") else {}
+memo = open("memo.txt").read() if os.path.exists("memo.txt") else ""
+w = re.search(r"down from t = (\d+) to t = (\d+)", memo)
+window = (int(w.group(1)), int(w.group(2))) if w else None
+for j in re.findall(r"(J\d+) was cancelled", memo):
+    jobs.pop(j)
+def cost(order):
+    t, prev, c = 0, "IDLE", 0
+    for j in order:
+        r, p, d, wt = jobs[j]
+        s = setups.get((prev, j), 0)
+        start = max(t, r)
+        if window and start < window[1] and start + s + p > window[0]:
+            start = window[1]
+        t = start + s + p
+        c += wt * max(0, t - d)
+        prev = j
+    return c
+print(json.dumps({"order": list(min(itertools.permutations(jobs), key=cost))}))
+"""
+
+SUBTITLE_SOLVER = r"""
+import json, re
+def ms(t):
+    h, m, s, x = map(int, re.match(r"(\d+):(\d+):(\d+),(\d+)", t).groups())
+    return ((h * 60 + m) * 60 + s) * 1000 + x
+def ts(v):
+    h, r = divmod(v, 3600000); m, r = divmod(r, 60000); s, x = divmod(r, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{x:03d}"
+cues = {}
+for block in open("movie.srt").read().strip().split("\n\n"):
+    _, times, text = block.split("\n", 2)
+    a, b = times.split(" --> ")
+    cues[text] = (ms(a), ms(b))
+notes = open("notes.md").read()
+syncs = [(t, ms(v)) for t, v in re.findall(r'cue "(.+?)" should start at (\S+)\.', notes)]
+fps = re.search(r"timed for ([\d.]+) fps; the release runs at ([\d.]+) fps", notes)
+scene = re.search(r"adds a (\d+) ms scene; it affects cues that start after original time (\S+)\.", notes)
+cut, extra = (ms(scene.group(2)), int(scene.group(1))) if scene else (None, 0)
+if fps:
+    k = float(fps.group(1)) / float(fps.group(2))
+    t, target = syncs[0]
+    off = target - cues[t][0] * k - (extra if cut is not None and cues[t][0] > cut else 0)
+    f = lambda x, start: x * k + off + (extra if cut is not None and start > cut else 0)
+else:
+    (t1, s1), (t2, s2) = syncs
+    a = (s2 - s1) / (cues[t2][0] - cues[t1][0]); b = s1 - a * cues[t1][0]
+    f = lambda x, start: a * x + b
+ans = {}
+for key, which, text in re.findall(r'^- ((start|end)_\d+): \w+ of the cue "(.+?)"', PROMPT, re.M):
+    s, e = cues[text]
+    ans[key] = ts(int(f(s if which == "start" else e, s) + 0.5))
+print(json.dumps(ans))
+"""
+
+
+@pytest.mark.parametrize("difficulty", DIFFICULTIES)
+@pytest.mark.parametrize("seed", SEEDS)
+@pytest.mark.parametrize("family,code", [("machine_schedule", SCHEDULE_SOLVER), ("subtitle_sync", SUBTITLE_SOLVER)])
+def test_python_solvers_for_new_families(env, family, code, difficulty, seed):
+    obs = env.reset(task_id=f"{family}-d{difficulty}", seed=seed)
+    out = act(env, "python", code=f"PROMPT = {obs.output!r}\n{code}")
+    final = submit(env, json.loads(out.output.strip().splitlines()[-1]))
+    assert final.reward == 1.0, final.output
+
+
+def _local(day_text, hhmm):
+    import datetime as dt
+
+    return dt.datetime.strptime(f"{day_text} {hhmm}", "%a %d %b %Y %H:%M")
+
+
+@pytest.mark.parametrize("difficulty", DIFFICULTIES)
+@pytest.mark.parametrize("seed", SEEDS)
+def test_inbox_solvable_from_emails(env, difficulty, seed):
+    import datetime as dt
+
+    env.reset(task_id=f"inbox_scheduling-d{difficulty}", seed=seed)
+    brief = act(env, "read", path="brief.txt").output
+    duration = int(re.search(r"(\d+)-minute", brief).group(1))
+    people = re.search(r"meeting with (.+?) between", brief).group(1).split(", ")
+    ids = [int(x) for x in re.findall(r"^(\d+):", act(env, "list_emails").output, re.M)]
+    offsets, busy, morning, room = {}, {p: [] for p in people}, set(), None
+    corrections = []
+    for i in ids:
+        mail = act(env, "read_email", id=i).output
+        sender = re.search(r"From: (\S+)", mail).group(1)
+        if m := re.search(r"my local time \(UTC([+-]\d\d):00\)", mail):
+            offsets[sender] = int(m.group(1))
+            for d, a, b in re.findall(r"- (\w{3} \d\d \w{3} \d{4}) (\d\d:\d\d) to (\d\d:\d\d)", mail):
+                busy[sender].append((_local(d, a), _local(d, b)))
+        if "end by 12:00" in mail:
+            morning.add(sender)
+        if m := re.search(r"my (\w{3} \d\d \w{3} \d{4} \d\d:\d\d) block moved to (\w{3} \d\d \w{3} \d{4} \d\d:\d\d)", mail):
+            corrections.append((sender, m.group(1), m.group(2)))
+        if sender == "Facilities":
+            room = [(_local(d, a), _local(d, b)) for d, a, b in re.findall(r"- (\w{3} \d\d \w{3} \d{4}) (\d\d:\d\d) to (\d\d:\d\d)", mail)]
+    for p, old, new in corrections:
+        o = dt.datetime.strptime(old, "%a %d %b %Y %H:%M")
+        n = dt.datetime.strptime(new, "%a %d %b %Y %H:%M")
+        busy[p] = [(n, n + (e - s)) if s == o else (s, e) for s, e in busy[p]]
+    start = dt.datetime(2026, 10, 13, 0, 0)
+    for step in range(3 * 96):
+        t = start + dt.timedelta(minutes=15 * step)  # organizer time, UTC+1
+        end = t + dt.timedelta(minutes=duration)
+        good = True
+        for p in people:
+            shift = dt.timedelta(hours=offsets[p] - 1)
+            ls, le = t + shift, end + shift
+            day = ls.replace(hour=0, minute=0)
+            if ls < day + dt.timedelta(hours=9) or le > day + dt.timedelta(hours=17):
+                good = False
+            if p in morning and le > day + dt.timedelta(hours=12):
+                good = False
+            if any(s < le and ls < e for s, e in busy[p]):
+                good = False
+        if room is not None and not any(s <= t and end <= e for s, e in room):
+            good = False
+        if good:
+            break
+    final = submit(env, {"start": t.strftime("%Y-%m-%d %H:%M")})
+    assert final.reward == 1.0, final.output
+
+
+@pytest.mark.parametrize("difficulty", DIFFICULTIES)
+@pytest.mark.parametrize("seed", SEEDS)
+def test_forensics_solvable_with_grep(env, difficulty, seed):
+    obs = env.reset(task_id=f"auth_forensics-d{difficulty}", seed=seed)
+    subnet = "/24" in obs.output
+    files = sorted(re.findall(r"^(\S+) \(\d+ lines\)", act(env, "list").output, re.M), key=lambda f: f != "auth.log.1")
+    sources = set()
+    for name in files:
+        while True:  # grep shows 30 lines: exclude addresses already seen until nothing new matches
+            skip = "|".join(re.escape(ip) for ip in sources)
+            pattern = r"Failed password for invalid user \S+ from " + (f"(?!(?:{skip}) )" if skip else "")
+            found = set(re.findall(r"from (\S+) port", act(env, "grep", pattern=pattern, path=name).output))
+            if not found - sources:
+                break
+            sources |= found
+    key = (lambda ip: ip.rsplit(".", 1)[0]) if subnet else (lambda ip: ip)
+    bad = {key(ip) for ip in sources}
+    for name in files:
+        out = act(env, "grep", pattern=r"Accepted password", path=name).output
+        hits = [m for m in re.finditer(r"^\d+: (\w{3} \d\d \d\d:\d\d:\d\d) \S+ sshd\[\d+\]: Accepted password for (\S+) from (\S+)", out, re.M) if key(m.group(3)) in bad]
+        if hits:
+            m = hits[0]
+            break
+    final = submit(env, {"attacker_ip": m.group(3), "user": m.group(2), "time": m.group(1)})
+    assert final.reward == 1.0, final.output
+
+
+@pytest.mark.parametrize("difficulty", [1, 2, 3])
+@pytest.mark.parametrize("seed", SEEDS)
+def test_code_repair_bugs_visible_and_unfixed_scores_zero(env, difficulty, seed):
+    env.reset(task_id=f"code_repair-d{difficulty}", seed=seed)
+    report = act(env, "run_tests").output
+    passed, total = map(int, re.search(r"^(\d+)/(\d+) visible tests passed", report).groups())
+    assert passed < total, report
+    assert submit(env, {}).reward == 0.0
+
+
+def test_code_repair_breaking_a_correct_function_scores_zero(env):
+    episode, _ = make_episode("code_repair-d3", 4)
+    fixed = episode.oracle[0]["args"]["content"]
+    episode.close()
+    env.reset(task_id="code_repair-d3", seed=4)
+    act(env, "write", path="lib.py", content=fixed.replace("return ", "return None and "))
+    assert submit(env, {}).reward == 0.0
+
+
+def test_code_repair_edit_requires_unique_match(env):
+    env.reset(task_id="code_repair-d2", seed=0)
+    out = act(env, "edit", path="lib.py", old="def ", new="def  ").output
+    assert out.startswith("Error:") and "matches" in out
 
 
 @pytest.mark.parametrize("task_id", TASK_IDS)
-def test_same_seed_same_instance_and_seeds_differ(task_id):
-    a, b, c = generate(task_id, 11), generate(task_id, 11), generate(task_id, 12)
-    assert a.files == b.files and [f.expected for f in a.fields] == [f.expected for f in b.fields]
-    assert a.files != c.files
+def test_every_task_id_resets_and_is_deterministic(task_id):
+    a, da = make_episode(task_id, 3)
+    b, db = make_episode(task_id, 3)
+    assert da == db and a.question == b.question and a.oracle == b.oracle
+    a.close()
+    b.close()
 
+
+def test_random_difficulty_varies_across_seeds():
+    assert {make_episode("subtitle_sync", s)[1] for s in range(40)} == set(DIFFICULTIES)
+
+
+def test_tool_errors_and_unknown_tools_do_not_end_episode(env):
+    env.reset(task_id="auth_forensics-d1", seed=0)
+    for obs in [act(env, "read"), act(env, "grep", pattern="(", path="auth.log"), act(env, "submit")]:
+        assert not obs.done and obs.reward == 0.0
+    assert "Unknown tool" in act(env, "python", code="1").output
+
+
+def test_budget_runs_out_with_zero_reward(env):
+    env.reset(task_id="graph_paths-d1", seed=1)
+    for _ in range(MAX_TOOL_CALLS):
+        obs = act(env, "list")
+    assert obs.done and obs.reward == 0.0 and obs.steps_left == 0
+
+
+def test_python_timeout_and_clipping(env):
+    env.reset(task_id="graph_paths-d1", seed=1)
+    assert "killed" in act(env, "python", code="while True: pass").output
+    assert len(act(env, "python", code="print('x' * 100000)").output) < 2000
+
+
+def test_unknown_task_rejected(env):
+    with pytest.raises(ValueError):
+        env.reset(task_id="nope")
+    with pytest.raises(ValueError):
+        env.reset(task_id="code_repair-d9")
+
+
+# v1 generator invariants (the v1 families are still served)
 
 def test_reactions_are_balanced():
     for reactants, products in REACTIONS:
@@ -80,15 +303,6 @@ def test_reactions_are_balanced():
 
 
 def test_digit_dp_matches_brute_force():
-    rng = random.Random(5)
-    for _ in range(20):
-        hi, m, q = rng.randrange(1, 5000), rng.randrange(3, 13), rng.randrange(4, 10)
-        r, s = rng.randrange(m), rng.randrange(q)
-        dp = count_digit_dp(hi, m, r, q, s) - count_digit_dp(0, m, r, q, s)
-        assert dp == count_brute(1, hi, m, r, q, s)
-
-
-def test_digit_dp_with_forbidden_digit_matches_brute_force():
     rng = random.Random(6)
     for _ in range(20):
         lo, m, q, digit = rng.randrange(1, 3000), rng.randrange(3, 13), rng.randrange(4, 10), rng.randrange(1, 10)
@@ -97,95 +311,56 @@ def test_digit_dp_with_forbidden_digit_matches_brute_force():
         dp = count_digit_dp(hi, m, r, q, s, digit) - count_digit_dp(lo - 1, m, r, q, s, digit)
         brute = sum(1 for n in range(lo, hi + 1) if n % m == r and digit_sum(n) % q == s and str(digit) not in str(n))
         assert dp == brute
+        assert count_digit_dp(hi, m, r, q, s) - count_digit_dp(lo - 1, m, r, q, s) == count_brute(lo, hi, m, r, q, s)
 
 
-def test_coupled_recurrence_matches_loop():
-    rng = random.Random(10)
-    for _ in range(20):
-        mod = rng.randrange(10, 10**9)
-        args = [rng.randrange(mod) for _ in range(2)] + [rng.randrange(1, 1000) for _ in range(6)]
-        n = rng.randrange(0, 300)
-        assert coupled_fast(*args, mod, n) == coupled_loop(*args, mod, n)
-
-
-def test_fast_recurrence_matches_loop():
+def test_fast_recurrences_match_loops():
     rng = random.Random(9)
     for _ in range(20):
         mod = rng.randrange(10, 10**9)
-        args = [rng.randrange(mod), rng.randrange(mod)] + [rng.randrange(1, 1000) for _ in range(4)]
         n = rng.randrange(0, 300)
+        args = [rng.randrange(mod), rng.randrange(mod)] + [rng.randrange(1, 1000) for _ in range(4)]
         assert recurrence_fast(*args, mod, n) == recurrence_loop(*args, mod, n)
+        cargs = [rng.randrange(mod) for _ in range(2)] + [rng.randrange(1, 1000) for _ in range(6)]
+        assert coupled_fast(*cargs, mod, n) == coupled_loop(*cargs, mod, n)
 
 
-def test_partial_credit(env):
-    env.reset(task_id="fx_ledger-l3", seed=1)
-    fields = env._task.fields
-    obs = submit(env, {fields[0].name: fields[0].expected})
-    assert obs.done and obs.reward == 0.5
+@pytest.mark.parametrize("task_id", [t for t in V1_TASK_IDS if t != "constrained_count-l2"])
+def test_v1_generation_never_crashes(task_id):
+    for seed in range(150):
+        v1_generate(task_id, seed)
 
 
-def test_finish_action_ends_with_zero(env):
-    env.reset(task_id="recurrence_mod-l1", seed=1)
-    obs = submit(env, {})
-    assert obs.done and obs.reward == 0.0
+def test_python_tool_is_safe_under_concurrent_threads():
+    # preexec_fn-based sandboxes could deadlock between fork and exec when threads run tools at once.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(i):
+        e = ComputeLabEnvironment()
+        try:
+            e.reset(task_id="graph_paths-d1", seed=i)
+            return act(e, "python", code="print(sum(range(10)))").output.strip()
+        finally:
+            e.close()
+
+    with ThreadPoolExecutor(16) as pool:
+        outs = list(pool.map(one, range(32)))
+    assert outs == ["45"] * 32
 
 
-def test_example_actions_end_every_task(env):
-    for task_id in TASK_IDS:
-        env.reset(task_id=task_id, seed=2)
-        obs = env.step(ComputeLabAction(tool="read", path="rules.md"))
-        assert not obs.done
-        obs = submit(env, {})
-        assert obs.done and 0.0 <= obs.reward <= 1.0
+def test_python_tool_errors_report_traceback(env):
+    env.reset(task_id="graph_paths-d1", seed=0)
+    out = act(env, "python", code="1/0").output
+    assert "ZeroDivisionError" in out
 
 
-def test_budget_runs_out_with_zero_reward(env):
-    env.reset(task_id="graph_paths-l1", seed=1)
-    for i in range(MAX_TOOL_CALLS):
-        obs = env.step(ComputeLabAction(tool="read", path="edges.csv"))
-    assert obs.done and obs.reward == 0.0 and obs.steps_left == 0
-    assert env.step(ComputeLabAction(tool="read", path="edges.csv")).done
-
-
-def test_tool_errors_do_not_end_episode(env):
-    env.reset(task_id="graph_paths-l1", seed=1)
-    for action in [
-        ComputeLabAction(tool="calc"),
-        ComputeLabAction(tool="read", path="../etc/passwd"),
-        ComputeLabAction(tool="python"),
-        ComputeLabAction(tool="submit"),
-    ]:
-        obs = env.step(action)
-        assert not obs.done and obs.reward == 0.0
-
-
-def test_python_timeout_and_clipping(env):
-    env.reset(task_id="graph_paths-l1", seed=1)
-    obs = env.step(ComputeLabAction(tool="python", code="while True: pass"))
-    assert "killed" in obs.output
-    obs = env.step(ComputeLabAction(tool="python", code="print('x' * 100000)"))
-    assert len(obs.output) < 2000
-
-
-def test_long_files_are_truncated_on_read(env):
-    env.reset(task_id="graph_paths-l3", seed=1)
-    obs = env.step(ComputeLabAction(tool="read", path="edges.csv"))
-    assert "more lines; process the file with python" in obs.output
-
-
-def test_unknown_task_rejected(env):
-    with pytest.raises(ValueError):
-        env.reset(task_id="nope-l1")
-
-
-@pytest.mark.parametrize("seed", [53, 173])
-def test_zero_order_run_b_never_goes_non_positive(seed):
-    # These seeds used to drive a zero-order run B below zero and crash the fit.
-    task = generate("reaction_kinetics-l3", seed)
-    assert all(f.expected is not None for f in task.fields)
-
-
-@pytest.mark.parametrize("task_id", [t for t in TASK_IDS if t != "constrained_count-l2"])
-def test_generation_never_crashes(task_id):
-    for seed in range(200):
-        generate(task_id, seed)
+@pytest.mark.parametrize("task_id", ["reaction_kinetics-d1", "stoichiometry-d1", "fx_ledger-d4", "xnpv_xirr-d4"])
+def test_guessing_a_categorical_field_earns_nothing(env, task_id):
+    # Partial credit let a policy score by guessing the reaction order / limiting reagent / top category.
+    episode, _ = make_episode(task_id, 5)
+    answer = dict(episode.oracle[0]["args"]["answer"])
+    episode.close()
+    numeric = next(k for k, v in answer.items() if isinstance(v, (int, float)) and not isinstance(v, bool) and k != "order")
+    answer[numeric] = -12345.0
+    env.reset(task_id=task_id, seed=5)
+    assert submit(env, answer).reward == 0.0

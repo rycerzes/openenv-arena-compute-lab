@@ -25,10 +25,12 @@ from pydantic import ValidationError
 
 from compute_lab.models import ComputeLabAction
 from compute_lab.server.compute_lab_environment import ComputeLabEnvironment
-from compute_lab.server.tasks import TASK_IDS
+from compute_lab.server.workbench import DIFFICULTIES, FAMILIES
+
+TASK_IDS = [f"{name}-d{d}" for name in FAMILIES for d in DIFFICULTIES]
 
 MODEL = "Qwen/Qwen3.8-27B"
-FINISH_ACTION = {"tool": "submit", "answer": {}}
+FINISH_ACTION = {"tool": "submit", "args": {"answer": {}}}
 ACTION_SCHEMA = ComputeLabAction.model_json_schema()
 SYSTEM = (
     "You are an agent acting in an environment. Each user message is a JSON observation. "

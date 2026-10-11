@@ -19,8 +19,8 @@ class ComputeLabEnv(EnvClient[ComputeLabAction, ComputeLabObservation, State]):
 
     ```python
     with ComputeLabEnv(base_url="http://localhost:8000").sync() as env:
-        result = env.reset(task_id="recurrence_mod-l2")
-        result = env.step(ComputeLabAction(tool="read", path="sequence.txt"))
+        result = env.reset(task_id="recurrence_mod-d2")
+        result = env.step(ComputeLabAction(tool="read", args={"path": "sequence.txt"}))
     ```
     """
 

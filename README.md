@@ -5,9 +5,7 @@ tags:
   - openenv
   - reinforcement-learning
   - tool-use
-  - math
-  - science
-  - finance
+  - agents
 configs:
   - config_name: default
     data_files:
@@ -15,131 +13,104 @@ configs:
         path: tasks.jsonl
 ---
 
-# Verified Compute Lab
+# Verified Compute Lab (Workbench v2)
 
 An [OpenEnv](https://github.com/meta-pytorch/OpenEnv) environment for
-[OpenEnv Arena](https://huggingface.co/spaces/openenvarena/arena): procedural,
-multi-step tasks in **math and formal reasoning**, **natural science** and
-**finance** that reward careful work with a tool rather than mental arithmetic.
+[OpenEnv Arena](https://huggingface.co/spaces/openenvarena/arena): 14 procedural
+task families across the eight Arena domains. Each task brings its own tools,
+and every answer is checked by an exact verifier.
 
-Each episode is a fresh instance: a question, named answer fields and a few
-small files (data, rules, sometimes a corrections memo). The agent works with
-three tools and gets 12 calls:
+Each reset builds a fresh task: a question, a few files or an inbox, and a tool
+list in the first observation. The action is always one JSON object:
 
 ```json
-{"tool": "read", "path": "rules.md"}
-{"tool": "python", "code": "print(sum(range(10)))"}
-{"tool": "submit", "answer": {"balance": 1234.56, "interest": 789.01}}
+{"tool": "read", "args": {"path": "rules.md"}}
+{"tool": "edit", "args": {"path": "lib.py", "old": "d -= 10", "new": "d -= 9"}}
+{"tool": "grep", "args": {"pattern": "Accepted password", "path": "auth.log"}}
+{"tool": "submit", "args": {"answer": {"start": "2026-10-14 10:30"}}}
 ```
 
-`python` runs Python 3 (standard library) in the episode's folder as an
-unprivileged user, with CPU, memory and output limits. `submit` ends the episode.
+The agent gets 16 tool calls. Code runs in a sandbox as an unprivileged user,
+with CPU, memory and output limits.
 
-## What it teaches
+| Family | Domain | Tools | What it takes |
+|---|---|---|---|
+| `code_repair` | software engineering | list, read, edit, write, run_tests | fix seeded bugs; at higher levels some bugs have no failing visible test and must be found from SPEC.md |
+| `machine_schedule` | industrial | list, read, python | optimal job order for weighted tardiness, with setups, a maintenance window and cancellations |
+| `inbox_scheduling` | office | list, read, python, list_emails, read_email | earliest meeting slot from constraints spread across emails, UTC offsets and corrections |
+| `auth_forensics` | cybersecurity | list, read, grep (no python) | first successful login from a brute-force source, with decoys, password-using office staff, a rotating /24 and log rotation |
+| `subtitle_sync` | media | list, read, python | retime an SRT file from sync points, frame-rate conversion and a scene insert |
+| `loan_schedule`, `fx_ledger`, `xnpv_xirr` | finance | list, read, python | amortization with corrections, multi-currency ledgers, XNPV and XIRR |
+| `reaction_kinetics`, `projectile_ode`, `stoichiometry` | natural science | list, read, python | fits and Arrhenius, Euler integration with drag and wind, yields |
+| `constrained_count`, `graph_paths`, `recurrence_mod` | math | list, read, python | digit DP, shortest-path counting, matrix powers for huge N |
 
-- **Compute, don't guess.** Answers need exact simulation, fitting or counting
-  (amortization schedules, XIRR, least-squares kinetics, Euler integration,
-  digit DP, Dijkstra with path counts, matrix powers for huge N).
-- **Read everything that's provided.** Level 2 adds the formatting real data
-  has: accounting amounts like `(1,234.50)`, day-first dates, mixed units
-  (min/mM, km/h, g, ft, knots, mg/kg), case variants and two-way roads.
-  `rules.md` describes all of them. Level 3 adds a `memo.txt` whose
-  corrections override the data files.
-- **Strict output format.** One JSON object per turn, as the Arena trainer requires.
+Task ids: `<family>` draws a difficulty from 1-4 on every reset; `<family>-d<k>`
+pins difficulty k. Level 2 and up add messy real-world formats, and level 3 and
+up add corrections memos that override the data.
 
 ## Reward
 
-The verifier recomputes every answer field from the generated instance and its
-stated rules. The reward is the share of fields within tolerance: 1.0 when all
-fields are right, partial credit only for multi-field answers. Running out of
-tool calls, or the finish action `{"tool": "submit", "answer": {}}`, scores 0.
-
-| Family | Domain | Levels |
-|---|---|---|
-| `loan_schedule` | finance | balance and interest after month k; extra payments and a rate reset; payoff with deferrals and a memo |
-| `fx_ledger` | finance | multi-currency balance with reversals and missing FX days; accounting formats; memo, plus the top currency exposure |
-| `xnpv_xirr` | finance | XNPV; XIRR with kUSD units and day-first dates; ranking three projects after a memo |
-| `reaction_kinetics` | natural science | order and k; min/mM units, QC-failed rows and a prediction; Arrhenius Ea from two runs (C and K) |
-| `projectile_ode` | natural science | Euler with quadratic drag; mixed units; wind bands in ft and knots |
-| `stoichiometry` | natural science | limiting reagent and yield; mg/kg, purity formats and percent yield; two-step synthesis with a memo |
-| `constrained_count` | math | brute-forceable counts; worded constraints; 10^12-scale digit DP with a forbidden digit |
-| `graph_paths` | math | shortest path; h/min times, two-way and closed roads, a waypoint; counting all cheapest routes |
-| `recurrence_mod` | math | a_N mod M; 1-indexed with a prefix sum; coupled sequences at N ~ 10^15 |
-
-Task ids are `<family>-l<level>`; the server accepts any of the 27 at reset
-(`task_id`), with an optional `seed` for a reproducible instance.
+Grading is all-or-nothing: a multi-field answer earns 1 only when every field is
+right. A local pilot found that partial credit let a small policy learn to guess
+categorical fields (reaction order, limiting reagent) instead of working, so
+partial credit was removed. `code_repair` keeps a share-of-bugs-fixed reward,
+because every point needs a real edit; breaking a function that was correct
+scores 0. Running out of tool calls, or `{"tool": "submit", "args": {"answer": {}}}`,
+scores 0.
 
 ## Verification
 
-- 27 independent reference solvers see only the prompt and files, run through
-  the environment's own `python` tool and score 1.0 on every task. They were
-  checked on 30+ seeds each. Empty and wrong answers score 0.
-- `openenv validate --url` passes 6/6 against the linux/amd64 image. A WebSocket
-  replay of every task passes against the container, and the sandbox runs as
-  `nobody` and cannot read the environment source.
+- Every family has an oracle that is checked to score 1.0 for every difficulty
+  and seed; empty and wrong answers score less. Agent-view solvers use only the
+  tools and the prompt (Python through the sandbox, grep output, parsed emails),
+  and they solve the new families on 40+ seeds each.
+- 418 tests, including a regression test for a sandbox launch that could
+  deadlock under threads (it no longer uses `preexec_fn`) and a test that
+  guessing a categorical field earns nothing.
+- The linux/amd64 image passes `openenv validate --url`, and a WebSocket replay
+  of every submitted task passes against an anonymous pull on a native x86 host.
 
 ## Calibration
 
-Measured on the real Qwen/Qwen3.8-27B (thinking off, temperature 1.0) through Hugging Face Inference Providers, with an Arena-style loop: a system message with the action schema, JSON observations as user turns, and one JSON object per reply (anything else ends the episode, scored through the finish action). This is a difficulty probe, not a training or leaderboard result.
+Qwen3.8-27B, thinking off, temperature 1.0, through Hugging Face Inference
+Providers, with an Arena-style loop (one JSON object per reply; anything else
+ends the episode). Three episodes per pinned task. The submission trains on the
+29 tasks the model solved in 1 or 2 of 3 episodes, which cover all 14 families and
+all eight domains. Per-task results are in `calibration_summary.json`.
 
-A first version stated everything plainly and was saturated: every submitted answer was right, and the only failures were reply format. Levels 2 and 3 were then rebuilt around messy formats and corrections memos. In this second sweep (153 episodes), 94% of submitted answers are correct. Most zeros come from replies that are not one valid JSON object (usually unescaped quotes or backslashes in long `code` strings, sometimes empty replies). Ten submitted answers were wrong, several of them memo or unit mistakes.
+## Local transfer experiments (honest null)
 
-The Arena submission trains on the 17 tasks with mixed outcomes (mean reward 0.17-0.83), so most 5-rollout GRPO groups should have non-zero reward variance. The other 10 tasks stay in the server and dataset.
+On one RTX 4090, Qwen3-4B was trained with GRPO (LoRA, a custom Unsloth trainer
+with shared-weight vLLM; 80 steps of 16 episodes). Four families were held out
+completely. Results on fixed seeds:
 
-| Task | Episodes | Mean reward | Correct when submitted | Format failures | In submission |
-|---|---|---|---|---|---|
-| `constrained_count-l1` | 6 | 0.67 | 1.0 | 2 | yes |
-| `constrained_count-l2` | 6 | 0.83 | 1.0 | 1 | yes |
-| `constrained_count-l3` | 6 | 0.50 | 0.75 | 2 | yes |
-| `fx_ledger-l1` | 6 | 1.00 | 1.0 | 0 |  |
-| `fx_ledger-l2` | 3 | 0.33 | 1.0 | 2 | yes |
-| `fx_ledger-l3` | 5 | 0.20 | 1.0 | 4 | yes |
-| `graph_paths-l1` | 6 | 1.00 | 1.0 | 0 |  |
-| `graph_paths-l2` | 6 | 0.92 | 0.917 | 0 |  |
-| `graph_paths-l3` | 5 | 0.80 | 1.0 | 1 | yes |
-| `loan_schedule-l1` | 6 | 0.50 | 0.75 | 2 | yes |
-| `loan_schedule-l2` | 5 | 0.80 | 0.8 | 0 | yes |
-| `loan_schedule-l3` | 5 | 0.80 | 1.0 | 1 | yes |
-| `projectile_ode-l1` | 6 | 0.83 | 1.0 | 1 | yes |
-| `projectile_ode-l2` | 6 | 1.00 | 1.0 | 0 |  |
-| `projectile_ode-l3` | 6 | 1.00 | 1.0 | 0 |  |
-| `reaction_kinetics-l1` | 6 | 1.00 | 1.0 | 0 |  |
-| `reaction_kinetics-l2` | 4 | 1.00 | 1.0 | 0 |  |
-| `reaction_kinetics-l3` | 6 | 0.50 | 1.0 | 3 | yes |
-| `recurrence_mod-l1` | 6 | 1.00 | 1.0 | 0 |  |
-| `recurrence_mod-l2` | 6 | 0.75 | 0.9 | 1 | yes |
-| `recurrence_mod-l3` | 6 | 0.17 | 0.5 | 4 | yes |
-| `stoichiometry-l1` | 6 | 0.58 | 0.7 | 1 | yes |
-| `stoichiometry-l2` | 6 | 0.83 | 1.0 | 1 | yes |
-| `stoichiometry-l3` | 6 | 0.50 | 0.75 | 2 | yes |
-| `xnpv_xirr-l1` | 6 | 1.00 | 1.0 | 0 |  |
-| `xnpv_xirr-l2` | 6 | 1.00 | 1.0 | 0 |  |
-| `xnpv_xirr-l3` | 6 | 0.67 | 1.0 | 2 | yes |
+| | Base | Broad (10 varied families) | Narrow (7 v1-style families) |
+|---|---|---|---|
+| Own trained families | 0.11 | 0.16 | 0.19 |
+| Held-out families (64 episodes) | 0.09 | 0.05 | 0.14 |
 
-## Local GRPO pilot
+Both arms learned their training tasks, and reply-format failures dropped. Neither
+showed a held-out gain beyond noise. Expect in-distribution learning; transfer to
+unseen task types was not detectable at this scale.
 
-Before submitting, `scripts/trl_grpo_pilot.py` ran GRPO on one RTX 4090: Qwen3-4B with LoRA, TRL 1.14 with colocated vLLM in sleep mode, Liger loss, 8k-token Arena-style multi-turn episodes, and the observation tokens masked out of the loss. It trained 60 steps (16 episodes each) on levels 1-2 of seven families, then evaluated on fixed seeds (6 per task, temperature 0.7):
+## History
 
-| Split | Base | Trained |
-|---|---|---|
-| Trained tasks (L1-L2 of 7 families) | 0.22 (16/84 solved) | 0.48 (36/84 solved) |
-| Untrained harder levels (L3 of those families) | 0.05 (0/42) | 0.04 (1/42) |
-| Held-out families (`graph_paths`, `xnpv_xirr`) | 0.02 (0/36) | 0.06 (1/36) |
-
-The reward is learnable, and format failures fall on the trained tasks. Transfer to harder levels or new families did not show up at this scale. This is a small-model check, not a prediction for the Arena run.
+v1 (`verified-compute-lab-v1`, 17 tasks in finance, science and math) trained for
+140 updates in the Arena and scored 4/40 on the private tasks, the same as the
+untrained reference in every domain. v2 adds the five non-math families, per-task
+tool sets, random difficulty per reset, all-or-nothing grading and the sandbox
+fix.
 
 ## Links
 
-- Image: `ghcr.io/rycerzes/openenv-arena-compute-lab:v1` (linux/amd64)
+- Image: `ghcr.io/rycerzes/openenv-arena-compute-lab:v2` (linux/amd64)
 - Source: https://github.com/rycerzes/openenv-arena-compute-lab
 - Dataset: https://huggingface.co/datasets/rycerzes/openenv-arena-compute-lab
-- Built for OpenEnv Arena with OpenEnv at `86a180ede21e044f7929b9a7783ad83aa67d83a3`
-- Arena submission `verified-compute-lab-v1` (`submission.json`): run [9a41aa8e1e4694e3a8809f8d](https://openenvarena-training.hf.space/?project=rycerzes&runs=9a41aa8e1e4694e3a8809f8d)
+- OpenEnv at `86a180ede21e044f7929b9a7783ad83aa67d83a3`, as pinned by the Arena
 
 ## Files
 
-- `tasks.jsonl`: one row per task id, with its domain, whether it is in the
-  Arena submission, its calibration, and a seed-0 example instance (prompt,
-  files and answer).
-- `source/`: the environment source, tests, reference solvers and scripts.
+- `tasks.jsonl`: one row per pinned task id (56), with its domain, tools, whether
+  it is in the submission, its calibration, and a seed-0 example prompt and oracle.
+- `source/`: environment source, tests, solvers, the trainers and scripts.
 - `calibration_summary.json`: per-task results against Qwen3.8-27B.

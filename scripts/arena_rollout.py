@@ -9,6 +9,7 @@ which is then scored through the finish action. Qwen3 chat format, thinking off.
 """
 
 import os
+import statistics
 import sys
 
 from pydantic import ValidationError
@@ -18,8 +19,52 @@ from calibrate import FINISH_ACTION, SYSTEM, parse_reply  # noqa: E402
 
 from compute_lab.models import ComputeLabAction  # noqa: E402
 from compute_lab.server.compute_lab_environment import ComputeLabEnvironment  # noqa: E402
+from compute_lab.server.workbench import DIFFICULTIES, FAMILIES  # noqa: E402
 
 FORMAT_FAILURES = ("bad_json", "no_json", "not_object", "extra_text", "schema_invalid")
+DEFAULT_HELD_OUT = "graph_paths,xnpv_xirr,auth_forensics,inbox_scheduling"
+
+
+def add_family_args(ap):
+    ap.add_argument("--held-out", type=lambda v: v.split(","), default=DEFAULT_HELD_OUT.split(","))
+    ap.add_argument("--train-families", type=lambda v: v.split(","), default=None, help="defaults to every family not held out")
+
+
+def check_family_args(ap, args):
+    """Default `--train-families` to every family not held out; reject unknown names."""
+    if args.train_families is None:
+        args.train_families = [f for f in FAMILIES if f not in args.held_out]
+    unknown = set(args.train_families + args.held_out) - set(FAMILIES)
+    if unknown:
+        ap.error(f"unknown families: {sorted(unknown)}")
+
+
+def eval_splits(train_families, held_out):
+    """Pinned-difficulty task ids for the trained and the held-out families."""
+    pinned = lambda fams: [f"{f}-d{d}" for f in fams for d in DIFFICULTIES]
+    return {"train_families": pinned(train_families), "held_out_families": pinned(held_out)}
+
+
+def eval_row(model, split, eps, seconds):
+    """Summary of one evaluation split; `by_task` is the mean reward per task id."""
+    by_task = {}
+    for ep in eps:
+        by_task.setdefault(ep["task_id"], []).append(ep["reward"])
+    return {
+        "model": model, "split": split, "episodes": len(eps),
+        "mean_reward": round(statistics.mean(ep["reward"] for ep in eps), 4),
+        "solved": sum(ep["reward"] == 1.0 for ep in eps),
+        "format_failures": sum(ep["end"] in FORMAT_FAILURES for ep in eps),
+        "context_ends": sum(ep["end"] == "context" for ep in eps),
+        "mean_turns": round(statistics.mean(ep["turns"] for ep in eps), 2),
+        "by_task": {t: round(statistics.mean(v), 3) for t, v in sorted(by_task.items())},
+        "seconds": round(seconds),
+    }
+
+
+def vllm_completions(outputs):
+    """`(token_ids, logprobs)` pairs from vLLM request outputs, with placeholder log-probs."""
+    return [(o.outputs[0].token_ids, [0.0] * len(o.outputs[0].token_ids)) for o in outputs]
 
 
 class Renderer:

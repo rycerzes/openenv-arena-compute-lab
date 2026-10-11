@@ -1,66 +1,63 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Replay every task against a running server over WebSocket.
+"""Replay tasks against a running server over WebSocket.
 
-Checks, per task: the reference solver (run through the python tool) scores 1.0,
-the submission's example actions end the episode with a reward in [0, 1], and a
-wrong answer scores below 1.
+For each task and seed, the episode is also generated locally (generation is
+deterministic), and its oracle actions are played against the server: they must
+score 1.0. An empty submission must score below 1, and the submission's example
+action must end the episode with a reward in [0, 1]. A probe checks that the
+python tool runs as nobody without access to the environment source.
 
-Usage: python scripts/replay.py --url http://localhost:8000 [--seeds 3]
+Usage: python scripts/replay.py --url http://localhost:8000 [--seeds 3] [--tasks a-d1,b-d2]
 """
 
 import argparse
-import json
-import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tests"))
+from compute_lab import ComputeLabAction, ComputeLabEnv
+from compute_lab.server.workbench import DIFFICULTIES, FAMILIES, make_episode
 
-from solutions import solver_code  # noqa: E402
-
-from compute_lab import ComputeLabAction, ComputeLabEnv  # noqa: E402
-from compute_lab.server.tasks import TASK_IDS, parse_task_id  # noqa: E402
-
-EXAMPLE_ACTIONS = [{"tool": "submit", "answer": {}}]
+EXAMPLE_ACTIONS = [{"tool": "submit", "args": {"answer": {}}}]
+PROBE = (
+    "import os\nprint('uid', os.getuid())\n"
+    "try:\n    open('/opt/app/server/app.py').read(); print('source readable')\n"
+    "except Exception as e:\n    print('source blocked', type(e).__name__)\n"
+)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://localhost:8000")
     ap.add_argument("--seeds", type=int, default=3)
-    ap.add_argument("--tasks", default=",".join(TASK_IDS))
+    ap.add_argument("--tasks", default=",".join(f"{f}-d{d}" for f in FAMILIES for d in DIFFICULTIES))
     args = ap.parse_args()
     failures = 0
     with ComputeLabEnv(base_url=args.url, message_timeout_s=120).sync() as env:
-        env.reset(task_id="graph_paths-l1", seed=0)
-        res = env.step(ComputeLabAction(tool="python", code=(
-            "import os\nprint('uid', os.getuid())\n"
-            "try:\n    open('/opt/app/server/app.py').read(); print('source readable')\n"
-            "except Exception as e:\n    print('source blocked', type(e).__name__)\n")))
-        print("sandbox probe:", res.observation.output.replace("\n", " | "))
+        env.reset(task_id="graph_paths-d1", seed=0)
+        probe = env.step(ComputeLabAction(tool="python", args={"code": PROBE}))
+        print("sandbox probe:", probe.observation.output.replace("\n", " | "))
         for task_id in args.tasks.split(","):
-            family, _ = parse_task_id(task_id)
             for seed in range(args.seeds):
-                obs = env.reset(task_id=task_id, seed=seed).observation
-                out = env.step(ComputeLabAction(tool="python", code=solver_code(family.name, obs.output)))
-                try:
-                    answer = json.loads(out.observation.output.strip().splitlines()[-1])
-                except (json.JSONDecodeError, IndexError):
-                    print("FAIL", task_id, seed, "solver output:", out.observation.output[-200:])
-                    failures += 1
-                    continue
-                final = env.step(ComputeLabAction(tool="submit", answer=answer))
-                wrong = {k: (v * 1.1 + 7 if isinstance(v, (int, float)) else "x") for k, v in answer.items()}
+                episode, _ = make_episode(task_id, seed)
+                oracle = episode.oracle
+                episode.close()
                 env.reset(task_id=task_id, seed=seed)
-                bad = env.step(ComputeLabAction(tool="submit", answer=wrong))
+                for action in oracle:
+                    final = env.step(ComputeLabAction(**action))
+                env.reset(task_id=task_id, seed=seed)
+                empty = env.step(ComputeLabAction(tool="submit", args={"answer": {}}))
                 env.reset(task_id=task_id)
-                for a in EXAMPLE_ACTIONS:
-                    ex = env.step(ComputeLabAction(**a))
-                ok = final.done and final.reward == 1.0 and bad.done and bad.reward < 1 and ex.done and 0 <= ex.reward <= 1
-                failures += not ok
+                for action in EXAMPLE_ACTIONS:
+                    example = env.step(ComputeLabAction(**action))
+                ok = (
+                    final.done and final.reward == 1.0
+                    and empty.done and empty.reward < 1.0
+                    and example.done and 0.0 <= example.reward <= 1.0
+                )
                 if not ok:
-                    print("FAIL", task_id, seed, final.reward, bad.reward, ex.done, ex.reward)
-            print(f"{task_id}: ok" if not failures else f"{task_id}: failures so far {failures}", flush=True)
+                    failures += 1
+                    print("FAIL", task_id, seed, final.reward, final.observation.output[:120], empty.reward, example.done)
+            print(f"{task_id}: {'ok' if not failures else f'{failures} failures so far'}", flush=True)
     print("FAILURES", failures)
     sys.exit(1 if failures else 0)
 

@@ -23,23 +23,24 @@ MEMORY_LIMIT_BYTES = 1 << 30
 MAX_OUTPUT_CHARS = 1500
 
 
-def _limit_child() -> None:
+# Runs inside the child before the agent's code: resource limits are set by the
+# (already unprivileged) child itself, so no Python runs between fork and exec.
+PRELUDE = f"""
+import resource, sys
+def _cap(name, value):
     try:
-        import resource
-
-        resource.setrlimit(resource.RLIMIT_CPU, (CPU_LIMIT_S, CPU_LIMIT_S))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (16 << 20, 16 << 20))
-        if sys.platform.startswith("linux"):
-            resource.setrlimit(
-                resource.RLIMIT_AS, (MEMORY_LIMIT_BYTES, MEMORY_LIMIT_BYTES)
-            )
-            resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
-    except (ImportError, ValueError, OSError):
+        resource.setrlimit(getattr(resource, name), (value, value))
+    except (AttributeError, ValueError, OSError):
         pass
-    if os.geteuid() == 0:
-        os.setgroups([])
-        os.setgid(NOBODY_GID)
-        os.setuid(NOBODY_UID)
+_cap("RLIMIT_CPU", {CPU_LIMIT_S})
+_cap("RLIMIT_FSIZE", {16 << 20})
+if sys.platform.startswith("linux"):
+    _cap("RLIMIT_AS", {MEMORY_LIMIT_BYTES})
+    _cap("RLIMIT_NPROC", 64)
+del _cap, resource
+_code = sys.stdin.read()
+exec(compile(_code, "<tool>", "exec"), {{"__name__": "__main__"}})
+"""
 
 
 def clip(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
@@ -57,42 +58,50 @@ class Workspace:
     def __init__(self, files: dict[str, str]):
         self.path = tempfile.mkdtemp(prefix="compute-lab-")
         for name, content in files.items():
-            with open(os.path.join(self.path, name), "w", encoding="utf-8") as f:
-                f.write(content)
+            self.write(name, content)
         if os.geteuid() == 0:
-            for name in [*files, ""]:
-                os.chown(os.path.join(self.path, name), NOBODY_UID, NOBODY_GID)
+            os.chown(self.path, NOBODY_UID, NOBODY_GID)
         os.chmod(self.path, 0o700)
 
-    def run_python(self, code: str) -> str:
+    def write(self, name: str, content: str) -> None:
+        """Create or replace a file, owned by the sandbox user when running as root."""
+        path = os.path.join(self.path, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        if os.geteuid() == 0:
+            os.chown(path, NOBODY_UID, NOBODY_GID)
+
+    def run_python(self, code: str, limit: int = MAX_OUTPUT_CHARS) -> str:
         env = {
             "PATH": "/usr/local/bin:/usr/bin:/bin",
             "HOME": self.path,
             "PYTHONIOENCODING": "utf-8",
             "PYTHONDONTWRITEBYTECODE": "1",
         }
+        # No preexec_fn: it can deadlock between fork and exec when the server has threads.
+        drop = {"user": NOBODY_UID, "group": NOBODY_GID, "extra_groups": []} if os.geteuid() == 0 else {}
         proc = subprocess.Popen(
-            [sys.executable, "-I", "-"],
+            [sys.executable, "-I", "-c", PRELUDE],
             cwd=self.path,
             env=env,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            preexec_fn=_limit_child,
             start_new_session=True,
+            **drop,
         )
         try:
             out, _ = proc.communicate(code.encode("utf-8"), timeout=WALL_TIMEOUT_S)
         except subprocess.TimeoutExpired:
             os.killpg(proc.pid, signal.SIGKILL)
             out, _ = proc.communicate()
-            return clip(out.decode("utf-8", "replace")) + "\n[killed: time limit]"
+            return clip(out.decode("utf-8", "replace"), limit) + "\n[killed: time limit]"
         text = out.decode("utf-8", "replace")
         if proc.returncode in (-signal.SIGXCPU, -signal.SIGKILL):
             text += "\n[killed: CPU time limit]"
         if not text.strip():
             text = "(no output; use print() to show results)"
-        return clip(text)
+        return clip(text, limit)
 
     def close(self) -> None:
         shutil.rmtree(self.path, ignore_errors=True)

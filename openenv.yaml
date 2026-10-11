@@ -1,6 +1,6 @@
 spec_version: 1
 name: compute_lab
-version: 0.1.0
+version: 0.2.0
 type: space
 runtime: fastapi
 app: server.app:app
@@ -19,4 +19,4 @@ validation:
     verifier:
       kind: reward_channel
   types:
-    tags: [math, science, finance, tool-use, procedural]
+    tags: [tool-use, agents, procedural, multi-domain]

@@ -15,29 +15,11 @@ import argparse
 import json
 import os
 import random
-import statistics
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from arena_rollout import FORMAT_FAILURES, Renderer, run_episodes  # noqa: E402
-
-from compute_lab.server.tasks import TASK_IDS  # noqa: E402
-
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HELD_OUT_FAMILIES = ("graph_paths", "xnpv_xirr")
-
-
-def task_split(train_levels):
-    """Training tasks (given levels of the non-held-out families) and the evaluation splits."""
-    own = [t for t in TASK_IDS if not t.startswith(HELD_OUT_FAMILIES)]
-    train = [t for t in own if int(t[-1]) in train_levels]
-    splits = {
-        "train_tasks": train,
-        "untrained_levels": [t for t in own if int(t[-1]) not in train_levels],
-        "held_out_families": [t for t in TASK_IDS if t.startswith(HELD_OUT_FAMILIES)],
-    }
-    return train, {k: v for k, v in splits.items() if v}
+from arena_rollout import Renderer, add_family_args, check_family_args, eval_row, eval_splits, run_episodes, vllm_completions  # noqa: E402
 
 
 def _write_json(path, obj):
@@ -56,11 +38,11 @@ def train(args):
     from peft import LoraConfig
     from trl import GRPOConfig, GRPOTrainer
 
-    train_tasks, splits = task_split(args.train_levels)
     rng = random.Random(0)
     groups_per_step = args.generation_batch // args.group
     n_prompts = args.steps * groups_per_step
-    prompts = [f"{train_tasks[i % len(train_tasks)]}|{rng.randrange(2**31)}" for i in range(n_prompts)]
+    families = args.train_families  # family task ids: the difficulty is drawn on every reset
+    prompts = [f"{families[i % len(families)]}|{rng.randrange(2**31)}" for i in range(n_prompts)]
     os.makedirs(args.out, exist_ok=True)
     episode_log = open(os.path.join(args.out, "episodes.jsonl"), "a")
     state = {"renderer": None}
@@ -136,8 +118,7 @@ def train(args):
         peft_config=lora,
         rollout_func=rollout,
     )
-    run_config = {k: sorted(v) if isinstance(v, set) else v for k, v in vars(args).items()}
-    _write_json(os.path.join(args.out, "config.json"), {"splits": splits, **run_config})
+    _write_json(os.path.join(args.out, "config.json"), {"splits": eval_splits(args.train_families, args.held_out), **vars(args)})
     trainer.train()
     trainer.save_model(os.path.join(args.out, "final"))
     _write_json(os.path.join(args.out, "log_history.json"), trainer.state.log_history)
@@ -148,37 +129,25 @@ def evaluate(args):
     from vllm import LLM, SamplingParams
     from vllm.lora.request import LoRARequest
 
-    _, splits = task_split(args.train_levels)
+    splits = eval_splits(args.train_families, args.held_out)
     tok = AutoTokenizer.from_pretrained(args.model)
     renderer = Renderer(tok)
     llm = LLM(model=args.model, enable_lora=bool(args.adapter), max_lora_rank=args.rank, max_model_len=args.context, gpu_memory_utilization=0.85, enable_prefix_caching=True)
     params = SamplingParams(max_tokens=args.max_turn_tokens, temperature=args.eval_temperature, seed=0)
     seeds = [10_000 + i for i in range(args.eval_seeds)]
-    models = [("base", None)]
+    models = [] if args.no_base else [("base", None)]
     if args.adapter:
         models.append(("trained", LoRARequest("trained", 1, args.adapter)))
     results = {}
     for name, lora in models:
         def generate(token_lists):
             outs = llm.generate([{"prompt_token_ids": ids} for ids in token_lists], params, lora_request=lora, use_tqdm=False)
-            return [(o.outputs[0].token_ids, [0.0] * len(o.outputs[0].token_ids)) for o in outs]
+            return vllm_completions(outs)
 
         for split, tasks in splits.items():
             t0 = time.time()
             eps = run_episodes(generate, renderer, [(t, s) for t in tasks for s in seeds], args.max_turn_tokens, args.context)
-            by_task = {}
-            for ep in eps:
-                by_task.setdefault(ep["task_id"], []).append(ep["reward"])
-            row = {
-                "model": name, "split": split, "episodes": len(eps),
-                "mean_reward": round(statistics.mean(ep["reward"] for ep in eps), 4),
-                "solved": sum(ep["reward"] == 1.0 for ep in eps),
-                "format_failures": sum(ep["end"] in FORMAT_FAILURES for ep in eps),
-                "context_ends": sum(ep["end"] == "context" for ep in eps),
-                "mean_turns": round(statistics.mean(ep["turns"] for ep in eps), 2),
-                "by_task": {t: round(statistics.mean(v), 3) for t, v in sorted(by_task.items())},
-                "seconds": round(time.time() - t0),
-            }
+            row = eval_row(name, split, eps, time.time() - t0)
             results[f"{name}/{split}"] = row
             print(json.dumps({k: v for k, v in row.items() if k != "by_task"}), flush=True)
     os.makedirs(args.out, exist_ok=True)
@@ -202,9 +171,11 @@ def main():
     ap.add_argument("--eval-seeds", type=int, default=6)
     ap.add_argument("--eval-temperature", type=float, default=0.7)
     ap.add_argument("--tag", default="final")
-    ap.add_argument("--train-levels", type=lambda v: {int(x) for x in v.split(",")}, default={1, 2})
+    ap.add_argument("--no-base", action="store_true", help="eval: skip the base model")
+    add_family_args(ap)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
+    check_family_args(ap, args)
     if args.mode == "train":
         train(args)
     else:

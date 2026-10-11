@@ -3,11 +3,11 @@
 # Build with scripts/build_image.sh, which first installs the locked linux/amd64
 # dependencies into build/site-packages. The image build itself needs no package index.
 
-# python:3.12.14-slim (Debian trixie), pinned by index digest
-FROM python:3.12.14-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f
+# python:3.12-slim (3.12.15, Debian trixie, 2026-10-09), pinned by index digest
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 
-LABEL org.opencontainers.image.title="Verified Compute Lab" \
-      org.opencontainers.image.description="OpenEnv environment: procedural math, science and finance tasks with a sandboxed Python tool" \
+LABEL org.opencontainers.image.title="Verified Compute Lab (Workbench v2)" \
+      org.opencontainers.image.description="OpenEnv environment: 14 procedural tool-use task families across eight domains" \
       org.opencontainers.image.source="https://github.com/rycerzes/openenv-arena-compute-lab" \
       org.opencontainers.image.licenses="BSD-3-Clause"
 

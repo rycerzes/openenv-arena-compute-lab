@@ -1,27 +1,20 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Data models for the Verified Compute Lab environment."""
+"""Data models for the Verified Compute Lab (Workbench v2) environment."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from openenv.core.env_server.types import Action, Observation
 from pydantic import Field
 
 
 class ComputeLabAction(Action):
-    """One tool call: read a task file, run Python on the files, or submit the answer."""
+    """One tool call. The first observation lists the tools this task offers and their args."""
 
-    tool: str = Field(..., description='One of "read", "python" or "submit".')
-    path: Optional[str] = Field(
-        default=None, description='File name to show (tool "read").'
-    )
-    code: Optional[str] = Field(
-        default=None,
-        description='Python 3 source to run in the task folder; print what you need (tool "python").',
-    )
-    answer: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description='Final answer, one key per answer field (tool "submit"). Ends the episode.',
+    tool: str = Field(..., description='Tool name, e.g. "read" or "submit"; see the task\'s tool list.')
+    args: Dict[str, Any] = Field(
+        default_factory=dict,
+        description='Tool arguments as an object, e.g. {"path": "notes.md"}; {"answer": {...}} for "submit".',
     )
 
 
