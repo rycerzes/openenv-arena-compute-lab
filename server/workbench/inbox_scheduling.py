@@ -14,7 +14,9 @@ from ..sandbox import Workspace
 from .base import Episode, Family, Tool, ToolError, arg, file_tools, submit_action, submit_hint
 
 PEOPLE = ["Ana", "Bram", "Chen", "Dalia", "Emeka", "Freya", "Goran", "Hana"]
-DAY0 = dt.date(2026, 10, 13)  # a Tuesday
+DAY0 = dt.date(2026, 10, 13)  # a Tuesday; the conversion origin
+# Windows start on a Mon/Tue/Wed between mid-October and late November, so dates vary per instance.
+WINDOW_STARTS = [DAY0 + dt.timedelta(d) for d in range(-1, 45) if (DAY0 + dt.timedelta(d)).weekday() <= 2]
 ORG_OFFSET = 1  # organizer's time is UTC+01:00
 EPOCH = dt.datetime.combine(DAY0, dt.time(0))  # constraints are kept in UTC minutes since this
 
@@ -37,7 +39,7 @@ def _to_local(minutes: int, offset: int) -> dt.datetime:
 
 
 def make(difficulty, rng):
-    for _ in range(100):
+    for _ in range(400):
         episode = _attempt(difficulty, rng)
         if episode:
             return episode
@@ -48,7 +50,8 @@ def _attempt(difficulty, rng):
     n_people = {1: 2, 2: 3, 3: 4, 4: 5}[difficulty]
     people = rng.sample(PEOPLE, n_people)
     duration = rng.choice([30, 45, 60, 90])
-    days = [DAY0 + dt.timedelta(d) for d in range(3)]
+    day0 = rng.choice(WINDOW_STARTS)
+    days = [day0 + dt.timedelta(d) for d in range(3)]
     offsets = {p: (ORG_OFFSET if difficulty < 3 else rng.choice([-5, 0, 1, 2, 5])) for p in people}
 
     busy = {p: [] for p in people}  # (start, end) in UTC minutes since EPOCH
@@ -57,9 +60,10 @@ def _attempt(difficulty, rng):
         off = offsets[p]
         lines = []
         for day in days:
-            for _ in range(rng.randint(1, 3)):
-                h = rng.randint(9, 15)
-                m = rng.choice([0, 15, 30, 45])
+            # an early block on the first day keeps "first slot of the window" from being the answer
+            starts = [(9, 0)] if day == days[0] and rng.random() < 0.6 else []
+            starts += [(rng.randint(9, 15), rng.choice([0, 15, 30, 45])) for _ in range(rng.randint(1, 3))]
+            for h, m in starts:
                 length = rng.choice([30, 45, 60, 90, 120])
                 local = dt.datetime.combine(day, dt.time(h, m))
                 start = _to_utc(local, off)
@@ -94,7 +98,7 @@ def _attempt(difficulty, rng):
             lines.append(_slot(local, length))
         emails.append(("Facilities", "Room B2 availability", "Room B2 is free only in these windows (UTC+01:00):\n" + "\n".join(lines)))
 
-    def ok(t):
+    def ok(t, with_busy=True):
         end = t + duration
         for p in people:
             off = offsets[p] * 60
@@ -104,15 +108,19 @@ def _attempt(difficulty, rng):
                 return False
             if morning_only == p and local_end > day_start + 12 * 60:
                 return False
-            if any(s < end and t < e for s, e in busy[p]):
+            if with_busy and any(s < end and t < e for s, e in busy[p]):
                 return False
         if room is not None and not any(s <= t and end <= e for s, e in room):
             return False
         return True
 
-    first = _to_utc(EPOCH, ORG_OFFSET)  # 00:00 on the first day, organizer's time
+    first = _to_utc(dt.datetime.combine(day0, dt.time(0)), ORG_OFFSET)  # 00:00 on the first day, organizer's time
     candidates = [t for t in range(first, first + 3 * 1440, 15) if ok(t)]
     if not candidates or candidates[0] < first + 60:
+        return None
+    # The inbox must matter: reject instances whose answer is just the first slot that working
+    # hours and the room allow (otherwise one constant answer solves most instances).
+    if candidates[0] == next(t for t in range(first, first + 3 * 1440, 15) if ok(t, with_busy=False)):
         return None
     expected = _to_local(candidates[0], ORG_OFFSET).strftime("%Y-%m-%d %H:%M")
 

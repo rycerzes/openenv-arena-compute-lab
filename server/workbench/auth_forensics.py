@@ -30,7 +30,7 @@ with open(args["path"], encoding="utf-8") as f:
         if pat.search(line):
             total += 1
             if len(shown) < args["max"]:
-                shown.append(f"{n}: {line.rstrip()}")
+                shown.append(f"{n}: {line.rstrip()[:200]}")
 print("\n".join(shown))
 print(f"[{total} matching lines" + (f"; showing first {len(shown)}]" if total > len(shown) else "]"))
 '''
@@ -110,8 +110,8 @@ def make(difficulty, rng):
             raise ToolError(f"no file {path!r}; files: {', '.join(files)}")
         if len(pattern) > 300:
             raise ToolError("pattern too long")
-        payload = json.dumps({"pattern": pattern, "path": path, "max": 30})
-        return ws.run_python(f"ARGS = {payload!r}\n{GREP}")
+        payload = json.dumps({"pattern": pattern, "path": path, "max": 20})
+        return ws.run_python(f"ARGS = {payload!r}\n{GREP}", limit=4500)  # already bounded to 20 lines
 
     fields = [
         AnswerField("attacker_ip", attacker, "text", "IP address of that first successful login", choices=[attacker]),
@@ -128,7 +128,7 @@ def make(difficulty, rng):
             f"{host} was brute-forced over SSH and an attacker got in. The attacking source is the address(es) that "
             f"failed logins for invalid user names. Find the first successful login from the attacking source.{note}"
         ),
-        tools=file_tools(ws, files, python=False) + [Tool("grep", '{"tool": "grep", "args": {"pattern": "<Python regex>", "path": "auth.log"}}  matching lines with line numbers (first 30) and the total count', grep)],
+        tools=file_tools(ws, files, python=False) + [Tool("grep", '{"tool": "grep", "args": {"pattern": "<Python regex>", "path": "auth.log"}}  matching lines with line numbers (first 20) and the total count', grep)],
         answer_hint=fields_hint(fields),
         grade=fields_grader(fields),
         workspace=ws,

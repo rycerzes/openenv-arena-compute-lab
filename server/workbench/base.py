@@ -12,12 +12,12 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from ..sandbox import Workspace, clip
+from ..sandbox import Workspace
 from ..tasks import grade as grade_fields
 from ..tasks.base import AnswerField
 
-READ_MAX_LINES = 40
-READ_MAX_CHARS = 2500
+READ_MAX_LINES = 30
+READ_MAX_CHARS = 1800
 
 
 class ToolError(Exception):
@@ -78,14 +78,21 @@ def arg(args: dict[str, Any], name: str, kind: type = str, required: bool = True
 
 
 def read_text(text: str, start: int = 1, max_lines: int = READ_MAX_LINES) -> str:
+    """Whole lines from `start`, stopping at the line or character budget, never cutting mid-output."""
     lines = text.splitlines()
     start = max(1, start)
-    chunk = lines[start - 1 : start - 1 + max_lines]
+    chunk, size = [], 0
+    for line in lines[start - 1 : start - 1 + max_lines]:
+        line = line if len(line) <= 300 else line[:300] + " [...]"
+        if chunk and size + len(line) + 1 > READ_MAX_CHARS:
+            break
+        chunk.append(line)
+        size += len(line) + 1
     out = "\n".join(chunk)
     rest = len(lines) - (start - 1 + len(chunk))
     if rest > 0:
         out += f"\n[{rest} more lines; pass start={start + len(chunk)} or process the file with code]"
-    return clip(out, READ_MAX_CHARS)
+    return out
 
 
 def file_tools(ws: Workspace, files: dict[str, str], python: bool = True) -> list[Tool]:
@@ -109,7 +116,7 @@ def file_tools(ws: Workspace, files: dict[str, str], python: bool = True) -> lis
 
     tools = [
         Tool("list", '{"tool": "list", "args": {}}  list the task files', do_list),
-        Tool("read", '{"tool": "read", "args": {"path": "<file>", "start": 1}}  show 40 lines from line start', do_read),
+        Tool("read", '{"tool": "read", "args": {"path": "<file>", "start": 1}}  show 30 lines from line start', do_read),
     ]
     if python:
         tools.append(Tool(

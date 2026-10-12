@@ -20,7 +20,7 @@ NOBODY_GID = 65534
 WALL_TIMEOUT_S = 15
 CPU_LIMIT_S = 10
 MEMORY_LIMIT_BYTES = 1 << 30
-MAX_OUTPUT_CHARS = 1500
+MAX_OUTPUT_CHARS = 1000
 
 
 # Runs inside the child before the agent's code: resource limits are set by the

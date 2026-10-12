@@ -78,6 +78,8 @@ def _count(level, rng):
         s = rng.randrange(q)
         digit = rng.randrange(1, 10)
         expected = count_digit_dp(hi, m, r, q, s, digit) - count_digit_dp(lo - 1, m, r, q, s, digit)
+        if expected == 0:  # some constraint combinations can never hold; "0" would be a free answer
+            return _count(level, rng)
         lines = [
             _remainder("n", r, m),
             _remainder("the sum of the decimal digits of n", s, q),

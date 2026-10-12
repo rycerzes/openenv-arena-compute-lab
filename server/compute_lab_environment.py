@@ -8,7 +8,8 @@ always `{"tool": <name>, "args": {...}}`. Submitting ends the episode and the
 family's grader returns a reward in [0, 1].
 """
 
-import random
+import time
+import zlib
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -24,7 +25,16 @@ except ImportError:
     from server.workbench import TASK_IDS, Episode, make_episode, parse_task_id
     from server.workbench.base import Tool, ToolError
 
-MAX_TOOL_CALLS = 16
+MAX_TOOL_CALLS = 12
+# Without an explicit seed, resets of the same task within one window share an instance. The
+# rollouts of a GRPO group reset together, so their rewards compare the policy on one task
+# instead of mixing in how hard each random draw was; later steps still get fresh instances.
+GROUP_WINDOW_S = 600
+
+
+def group_seed(task_id: str, now: Optional[float] = None) -> int:
+    window = int((time.time() if now is None else now) // GROUP_WINDOW_S)
+    return zlib.crc32(f"{task_id}:{window}".encode())
 DEFAULT_TASK_ID = "code_repair"
 
 
@@ -32,7 +42,8 @@ def render_prompt(episode: Episode) -> str:
     tools = "\n".join(t.usage for t in episode.tools)
     return (
         f"{episode.question}\n"
-        "Reply with exactly one JSON object per turn. Tools:\n"
+        "Reply with one JSON object and nothing else: no prose, no code fences. Inside strings write "
+        'newlines as \\n and quotes as \\". Keep code short. Tools:\n'
         f"{tools}\n"
         '{"tool": "submit", "args": {"answer": ...}}  ends the episode and grades the answer\n'
         f"{episode.answer_hint}\n"
@@ -64,7 +75,7 @@ class ComputeLabEnvironment(Environment):
         task_id = task_id or DEFAULT_TASK_ID
         parse_task_id(task_id)  # reject a bad task_id before closing the current episode
         if seed is None:
-            seed = random.SystemRandom().randrange(2**31)
+            seed = group_seed(task_id)
         self.close()
         self._episode, difficulty = make_episode(task_id, seed)
         self._tools = {t.name: t for t in self._episode.tools}

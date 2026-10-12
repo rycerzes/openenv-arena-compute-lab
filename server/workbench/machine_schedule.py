@@ -50,6 +50,10 @@ def make(difficulty, rng):
         due = release + proc + rng.randrange(0, 120, 5)
         jobs[name] = (release, proc, due, rng.randint(1, 5))
         t += proc
+    # Relabel at random so the creation order (J1 first) is not a good default answer.
+    labels = rng.sample(names, len(names))
+    jobs = {labels[i]: jobs[names[i]] for i in range(len(names))}
+    names = labels
     cancelled = rng.choice(names) if difficulty == 4 else None
     if difficulty < 4:
         jobs.pop(names[-1])

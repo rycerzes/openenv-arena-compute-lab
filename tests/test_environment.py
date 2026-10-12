@@ -173,7 +173,8 @@ def test_inbox_solvable_from_emails(env, difficulty, seed):
         o = dt.datetime.strptime(old, "%a %d %b %Y %H:%M")
         n = dt.datetime.strptime(new, "%a %d %b %Y %H:%M")
         busy[p] = [(n, n + (e - s)) if s == o else (s, e) for s, e in busy[p]]
-    start = dt.datetime(2026, 10, 13, 0, 0)
+    first_day = re.search(r"between (\w{3} \d\d \w{3} \d{4})", brief).group(1)
+    start = dt.datetime.strptime(first_day, "%a %d %b %Y")
     for step in range(3 * 96):
         t = start + dt.timedelta(minutes=15 * step)  # organizer time, UTC+1
         end = t + dt.timedelta(minutes=duration)
@@ -364,3 +365,28 @@ def test_guessing_a_categorical_field_earns_nothing(env, task_id):
     answer[numeric] = -12345.0
     env.reset(task_id=task_id, seed=5)
     assert submit(env, answer).reward == 0.0
+
+
+def test_read_returns_whole_lines_and_a_resume_point(env):
+    # Clipping the middle of a long read once hid the line an agent needed.
+    env.reset(task_id="auth_forensics-d3", seed=1)
+    out = act(env, "read", path="auth.log").output
+    body, marker = out.rsplit("\n", 1)
+    assert "chars cut" not in out and marker.startswith("[") and "pass start=" in marker
+    nxt = int(re.search(r"start=(\d+)", marker).group(1))
+    assert all(re.match(r"\w{3} \d\d \d\d:\d\d:\d\d ", line) for line in body.splitlines())
+    follow = act(env, "read", path="auth.log", start=nxt).output
+    assert follow.splitlines()[0] != body.splitlines()[0]
+
+
+def test_unseeded_resets_share_an_instance_within_a_window(env, monkeypatch):
+    import compute_lab.server.compute_lab_environment as cle
+
+    seed_of = lambda task_id, **kw: (env.reset(task_id=task_id, **kw), env.state.seed)[1]
+    monkeypatch.setattr(cle.time, "time", lambda: 1_800_000_000.0)
+    first = seed_of("inbox_scheduling")
+    assert seed_of("inbox_scheduling") == first
+    assert seed_of("subtitle_sync") != first
+    monkeypatch.setattr(cle.time, "time", lambda: 1_800_000_000.0 + cle.GROUP_WINDOW_S)
+    assert seed_of("inbox_scheduling") != first
+    assert seed_of("inbox_scheduling", seed=5) == 5
