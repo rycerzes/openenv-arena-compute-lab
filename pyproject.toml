@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openenv-compute-lab"
-version = "0.2.0"
-description = "Verified Compute Lab (Workbench v2): procedural tool-use tasks across eight domains for OpenEnv"
+version = "0.3.0"
+description = "Verified Compute Lab (Workbench v3): procedural tool-use tasks across eight domains for OpenEnv"
 requires-python = ">=3.10"
 dependencies = [
     # OpenEnv at the revision pinned by OpenEnv Arena

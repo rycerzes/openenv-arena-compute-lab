@@ -45,7 +45,8 @@ def make(difficulty, rng):
         moq = rng.choice([0, 0, 50, 100, 200]) if difficulty >= 3 else 0
         rop = forecast * lead + math.ceil(round(forecast * safety_days, 6))
         on_hand = max(0, int(rop * rng.uniform(0.3, 1.6)))
-        items[s] = {"forecast": forecast, "lead": lead, "pack": pack, "moq": moq, "on_hand": on_hand, "reserved": rng.randrange(0, max(1, on_hand // 4) + 1)}
+        items[s] = {"forecast": forecast, "lead": lead, "pack": pack, "moq": moq, "on_hand": on_hand,
+                    "reserved": rng.randrange(0, max(1, on_hand // 4) + 1) if difficulty >= 2 else 0}
     pos = []
     if difficulty >= 2:
         for s in rng.sample(skus, max(2, n // 2)):

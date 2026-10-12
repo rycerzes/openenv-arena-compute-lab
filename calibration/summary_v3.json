@@ -1,0 +1,463 @@
+{
+ "model": "Qwen/Qwen3.8-27B",
+ "provider": "deepinfra (HF Inference Providers)",
+ "thinking": "off",
+ "temperature": 1.0,
+ "budgets": {
+  "completion_tokens": 12288,
+  "context_tokens": 20480,
+  "tool_calls": 12
+ },
+ "selection_rule": "pinned tasks the model solved in 1 or 2 of 3 episodes",
+ "date": "2026-10-12",
+ "tasks": {
+  "loan_schedule-d1": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "loan_schedule-d2": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 0,
+   "selected": true
+  },
+  "loan_schedule-d3": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 0,
+   "selected": true
+  },
+  "loan_schedule-d4": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "fx_ledger-d1": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "fx_ledger-d2": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "fx_ledger-d3": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "fx_ledger-d4": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "xnpv_xirr-d1": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "xnpv_xirr-d2": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "xnpv_xirr-d3": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "xnpv_xirr-d4": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "reaction_kinetics-d1": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "reaction_kinetics-d2": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 3,
+   "selected": false
+  },
+  "reaction_kinetics-d3": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "reaction_kinetics-d4": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "projectile_ode-d1": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "projectile_ode-d2": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "projectile_ode-d3": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "projectile_ode-d4": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "stoichiometry-d1": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "stoichiometry-d2": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "stoichiometry-d3": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 0,
+   "selected": true
+  },
+  "stoichiometry-d4": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 0,
+   "selected": true
+  },
+  "constrained_count-d1": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "constrained_count-d2": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "constrained_count-d3": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 1,
+   "selected": true
+  },
+  "constrained_count-d4": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 1,
+   "selected": true
+  },
+  "graph_paths-d1": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 2,
+   "selected": true
+  },
+  "graph_paths-d2": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "graph_paths-d3": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 1,
+   "selected": true
+  },
+  "graph_paths-d4": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 0,
+   "selected": true
+  },
+  "recurrence_mod-d1": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "recurrence_mod-d2": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "recurrence_mod-d3": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "recurrence_mod-d4": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 1,
+   "selected": true
+  },
+  "code_repair-d1": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "code_repair-d2": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "code_repair-d3": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 1,
+   "format_failures": 0,
+   "selected": true
+  },
+  "code_repair-d4": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "machine_schedule-d1": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "machine_schedule-d2": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "machine_schedule-d3": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "machine_schedule-d4": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 2,
+   "selected": true
+  },
+  "inbox_scheduling-d1": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 0,
+   "selected": true
+  },
+  "inbox_scheduling-d2": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "inbox_scheduling-d3": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 3,
+   "selected": false
+  },
+  "inbox_scheduling-d4": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 1,
+   "selected": false
+  },
+  "auth_forensics-d1": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "auth_forensics-d2": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 0,
+   "selected": true
+  },
+  "auth_forensics-d3": {
+   "episodes": 3,
+   "mean_reward": 1.0,
+   "solved": 3,
+   "format_failures": 0,
+   "selected": false
+  },
+  "auth_forensics-d4": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 0,
+   "selected": true
+  },
+  "subtitle_sync-d1": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 0,
+   "selected": true
+  },
+  "subtitle_sync-d2": {
+   "episodes": 3,
+   "mean_reward": 0.667,
+   "solved": 2,
+   "format_failures": 0,
+   "selected": true
+  },
+  "subtitle_sync-d3": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 0,
+   "selected": true
+  },
+  "subtitle_sync-d4": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 0,
+   "selected": true
+  },
+  "expense_audit-d1": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 0,
+   "selected": true
+  },
+  "expense_audit-d2": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "expense_audit-d3": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "expense_audit-d4": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "inventory_reorder-d1": {
+   "episodes": 3,
+   "mean_reward": 0.333,
+   "solved": 1,
+   "format_failures": 1,
+   "selected": true
+  },
+  "inventory_reorder-d2": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 1,
+   "selected": false
+  },
+  "inventory_reorder-d3": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 0,
+   "selected": false
+  },
+  "inventory_reorder-d4": {
+   "episodes": 3,
+   "mean_reward": 0.0,
+   "solved": 0,
+   "format_failures": 0,
+   "selected": false
+  }
+ }
+}

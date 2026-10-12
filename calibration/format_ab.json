@@ -1,0 +1,28 @@
+{
+ "model": "Qwen/Qwen3.8-27B",
+ "thinking": "off",
+ "tasks": "difficulty 2-3 of fx_ledger, xnpv_xirr, loan_schedule, stoichiometry, reaction_kinetics, machine_schedule, subtitle_sync; 5 episodes each",
+ "variants": {
+  "A": {
+   "line": "Reply with exactly one JSON object per turn.",
+   "episodes": 70,
+   "format_failures": 9,
+   "format_failure_rate": 0.129,
+   "mean_reward": 0.714
+  },
+  "B": {
+   "line": "Reply with one JSON object and nothing else: no prose, no code fences. Inside strings write newlines as \\n and quotes as \\\". Keep code short.",
+   "episodes": 70,
+   "format_failures": 12,
+   "format_failure_rate": 0.171,
+   "mean_reward": 0.686
+  },
+  "C": {
+   "line": "B plus: escape only double quotes and newlines; write single quotes as they are, never \\'.",
+   "episodes": 70,
+   "format_failures": 17,
+   "format_failure_rate": 0.243,
+   "mean_reward": 0.543
+  }
+ }
+}

@@ -72,7 +72,7 @@ print(f"[{len(rows)} rows" + ("; showing first 40]" if len(rows) > 40 else "]"))
 
 
 def make(difficulty, rng):
-    n_claims = {1: 12, 2: 20, 3: 30, 4: 40}[difficulty]
+    n_claims = {1: 8, 2: 14, 3: 24, 4: 34}[difficulty]
     employee = rng.choice(EMPLOYEES)
     others = [e for e in EMPLOYEES if e != employee]
     currencies = ["USD"] if difficulty == 1 else ["USD", *rng.sample(["EUR", "GBP", "JPY", "CAD"], 2)]

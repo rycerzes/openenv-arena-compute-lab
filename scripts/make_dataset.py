@@ -23,7 +23,7 @@ SOURCE_FILES = ["__init__.py", "models.py", "client.py", "openenv.yaml", "pyproj
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tasks", required=True, help="task ids in the submission (split=train)")
-    ap.add_argument("--calibration", default=os.path.join(ROOT, "calibration", "summary_v2.json"))
+    ap.add_argument("--calibration", default=os.path.join(ROOT, "calibration", "summary_v3.json"))
     ap.add_argument("--out", default=os.path.join(ROOT, "dataset"))
     args = ap.parse_args()
     submitted = set(args.tasks.split(","))
@@ -62,6 +62,8 @@ def main():
     if os.path.exists(args.calibration):
         shutil.copy(args.calibration, os.path.join(args.out, "calibration_summary.json"))
     shutil.copy(os.path.join(ROOT, "README.md"), os.path.join(args.out, "README.md"))
+    if os.path.exists(os.path.join(ROOT, "calibration", "format_ab.json")):
+        shutil.copy(os.path.join(ROOT, "calibration", "format_ab.json"), os.path.join(args.out, "format_ab.json"))
     print(f"wrote {args.out}: {len(FAMILIES) * len(DIFFICULTIES)} pinned tasks ({len(submitted)} in submission)")
 
 

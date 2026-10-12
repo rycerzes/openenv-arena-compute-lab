@@ -30,6 +30,9 @@ MAX_TOOL_CALLS = 12
 # rollouts of a GRPO group reset together, so their rewards compare the policy on one task
 # instead of mixing in how hard each random draw was; later steps still get fresh instances.
 GROUP_WINDOW_S = 600
+# A/B on Qwen3.8-27B (70 episodes each): this plain line had the fewest format failures (12.9%);
+# longer escaping advice did worse (17.1% and 24.3%). See calibration/format_ab.json.
+FORMAT_LINE = "Reply with exactly one JSON object per turn."
 
 
 def group_seed(task_id: str, now: Optional[float] = None) -> int:
@@ -42,8 +45,7 @@ def render_prompt(episode: Episode) -> str:
     tools = "\n".join(t.usage for t in episode.tools)
     return (
         f"{episode.question}\n"
-        "Reply with one JSON object and nothing else: no prose, no code fences. Inside strings write "
-        'newlines as \\n and quotes as \\". Keep code short. Tools:\n'
+        f"{FORMAT_LINE} Tools:\n"
         f"{tools}\n"
         '{"tool": "submit", "args": {"answer": ...}}  ends the episode and grades the answer\n'
         f"{episode.answer_hint}\n"
