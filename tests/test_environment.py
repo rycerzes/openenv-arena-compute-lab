@@ -390,3 +390,96 @@ def test_unseeded_resets_share_an_instance_within_a_window(env, monkeypatch):
     monkeypatch.setattr(cle.time, "time", lambda: 1_800_000_000.0 + cle.GROUP_WINDOW_S)
     assert seed_of("inbox_scheduling") != first
     assert seed_of("inbox_scheduling", seed=5) == 5
+
+
+INVENTORY_SOLVER = r"""
+import csv, datetime as dt, json, math, os, re
+rows = lambda name: list(csv.DictReader(open(name))) if os.path.exists(name) else []
+policy = open("policy.md").read()
+safety_days = float(re.search(r"ceil\(daily_forecast \* ([\d.]+)\)", policy).group(1))
+review_days = float(re.search(r"lead_time_days \+ ([\d.]+)\)", policy).group(1))
+today = dt.date.fromisoformat(open("today.txt").read().split(":")[1].strip())
+memo = open("memo.txt").read() if os.path.exists("memo.txt") else ""
+lead = {r["sku"]: int(r["lead_time_days"]) for r in rows("suppliers.csv")}
+for sku, days in re.findall(r"(SKU-\d+) now has lead_time_days = (\d+)", memo):
+    lead[sku] = int(days)
+gone = set(re.findall(r"(SKU-\d+) is discontinued", memo))
+sup = {r["sku"]: r for r in rows("suppliers.csv")}
+fc = {r["sku"]: float(r["daily_forecast"]) for r in rows("demand.csv")}
+orders = {}
+for r in rows("stock.csv"):
+    s = r["sku"]
+    if s in gone:
+        continue
+    incoming = sum(int(p["qty"]) for p in rows("open_pos.csv") if p["sku"] == s and p["status"] == "confirmed" and dt.date.fromisoformat(p["eta"]) <= today + dt.timedelta(lead[s]))
+    pos = int(r["on_hand"]) - int(r["reserved"]) + incoming
+    safety = math.ceil(round(fc[s] * safety_days, 6))
+    if pos > round(fc[s] * lead[s] + safety, 6):
+        continue
+    q = math.ceil(round(fc[s] * (lead[s] + review_days) + safety - pos, 6))
+    pack, moq = int(sup[s]["pack_size"]), int(sup[s]["moq"])
+    orders[s] = max(math.ceil(q / pack) * pack, moq)
+print(json.dumps({"orders": orders}))
+"""
+
+
+@pytest.mark.parametrize("difficulty", DIFFICULTIES)
+@pytest.mark.parametrize("seed", SEEDS)
+def test_inventory_solvable_with_python(env, difficulty, seed):
+    env.reset(task_id=f"inventory_reorder-d{difficulty}", seed=seed)
+    out = act(env, "python", code=INVENTORY_SOLVER)
+    assert submit(env, json.loads(out.output.strip().splitlines()[-1])).reward == 1.0
+
+
+@pytest.mark.parametrize("difficulty", DIFFICULTIES)
+@pytest.mark.parametrize("seed", SEEDS)
+def test_expense_audit_solvable_with_sql(env, difficulty, seed):
+    import datetime as dt
+    from decimal import ROUND_HALF_UP, Decimal
+
+    obs = env.reset(task_id=f"expense_audit-d{difficulty}", seed=seed)
+    who = re.search(r"expense claims of (.+?) following", obs.output).group(1)
+
+    def table(query):
+        lines = act(env, "sql", query=query).output.strip().splitlines()
+        header = [h.strip() for h in lines[0].split(" | ")]
+        return [dict(zip(header, [v.strip() for v in line.split(" | ")])) for line in lines[1:-1]]
+
+    claims = table(f"SELECT * FROM claims WHERE employee = '{who}' ORDER BY CAST(SUBSTR(claim_id, 2) AS INTEGER) LIMIT 40")
+    if len(claims) == 40:
+        claims += table(f"SELECT * FROM claims WHERE employee = '{who}' ORDER BY CAST(SUBSTR(claim_id, 2) AS INTEGER) LIMIT 40 OFFSET 40")
+    tiers = {r["city"]: r["tier"] for r in table("SELECT * FROM tiers")}
+    rates = {r["currency"]: float(r["usd_per_unit"]) for r in table("SELECT * FROM rates")}
+    files = act(env, "list").output
+    memo = act(env, "read", path="memo.txt").output if "memo.txt" in files else ""
+    eff = re.search(r"Effective (\d{4}-\d\d-\d\d)", memo)
+    eff = dt.date.fromisoformat(eff.group(1)) if eff else None
+    cap_amend = re.search(r"tier (\w) meal cap is \$(\d+(?:\.\d+)?)", memo)
+    receipt_amend = re.search(r"required for claims above \$(\d+(?:\.\d+)?)", memo)
+    cents = lambda x: float(Decimal(repr(x)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    meal_caps, lodging_caps = {"A": 75.0, "B": 60.0, "C": 45.0}, {"A": 250.0, "B": 180.0, "C": 120.0}
+    seen, kept, rejected = set(), [], []
+    for c in claims:
+        day = dt.date.fromisoformat(c["date"])
+        usd = cents(float(c["amount"]) * rates[c["currency"]])
+        limit = float(receipt_amend.group(1)) if receipt_amend and day >= eff else 75.0
+        key = (c["date"], c["category"], float(c["amount"]), c["currency"])
+        dup = key in seen
+        seen.add(key)
+        if c["category"] == "supplies" or (c["receipt"] == "no" and usd > limit) or (day.weekday() >= 5 and "approved travel" not in c["note"]) or dup:
+            rejected.append(c["claim_id"])
+        else:
+            kept.append((c, day, usd))
+    total, meals = 0.0, {}
+    for c, day, usd in kept:
+        tier = tiers[c["city"]]
+        if c["category"] == "meals":
+            cap = float(cap_amend.group(2)) if cap_amend and day >= eff and tier == cap_amend.group(1) else meal_caps[tier]
+            meals.setdefault(day, [0.0, cap])[0] += usd
+        elif c["category"] == "lodging":
+            total += min(usd, lodging_caps[tier])
+        else:
+            total += usd
+    total += sum(min(s, cap) for s, cap in meals.values())
+    final = submit(env, {"total_usd": cents(total), "rejected": rejected})
+    assert final.reward == 1.0, final.output

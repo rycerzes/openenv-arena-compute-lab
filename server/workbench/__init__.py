@@ -8,7 +8,7 @@ groups stay mixed as the policy improves); `<family>-d<k>` pins difficulty k.
 
 import random
 
-from . import auth_forensics, code_repair, inbox_scheduling, machine_schedule, subtitle_sync, v1_families
+from . import auth_forensics, code_repair, expense_audit, inbox_scheduling, inventory_reorder, machine_schedule, subtitle_sync, v1_families
 from .base import Episode, Family
 
 FAMILIES: dict[str, Family] = {
@@ -20,6 +20,8 @@ FAMILIES: dict[str, Family] = {
         inbox_scheduling.FAMILY,
         auth_forensics.FAMILY,
         subtitle_sync.FAMILY,
+        expense_audit.FAMILY,
+        inventory_reorder.FAMILY,
     ]
 }
 DIFFICULTIES = (1, 2, 3, 4)
